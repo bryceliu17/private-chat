@@ -1,0 +1,15 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+dist/
+build/
+.vite/
+client/.vite/
+.vscode/
+server/data/
+server/uploads/
+tools/
+deploy/nginx/logs/
+deploy/nginx/temp/
+deploy/nginx/certs/

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+            server/package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Check backend syntax
+        run: |
+          node --check server/index.js
+          node --check server/auth.js
+          node --check server/config.js
+          node --check server/db.js
+          node --check server/encryption.js
+          node --check server/messages.js
+          node --check server/presence.js
+          node --check server/security.js
+          node --check server/sockets.js
+
+      - name: Run backend tests
+        run: npm test
+        working-directory: server
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: client
