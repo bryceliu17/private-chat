@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import LoginView from "./components/LoginView";
+import RoomListView from "./components/RoomListView";
 import "./App.css";
 
 const API_URL = import.meta.env.DEV
@@ -16,17 +18,28 @@ function formatMessageTime(createdAt) {
     return "";
   }
 
+  const timestamp =
+    typeof createdAt === "string" && /^\d+$/.test(createdAt)
+      ? Number(createdAt)
+      : createdAt;
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(createdAt));
+  }).format(date);
 }
 
 function renderMessageText(text) {
+  const safeText = String(text || "");
   const parts = [];
   let lastIndex = 0;
 
-  for (const match of text.matchAll(URL_PATTERN)) {
+  for (const match of safeText.matchAll(URL_PATTERN)) {
     const rawUrl = match[0];
     const startIndex = match.index ?? 0;
     const displayUrl = rawUrl.replace(TRAILING_URL_PUNCTUATION, "");
@@ -36,7 +49,7 @@ function renderMessageText(text) {
       : displayUrl;
 
     if (startIndex > lastIndex) {
-      parts.push(text.slice(lastIndex, startIndex));
+      parts.push(safeText.slice(lastIndex, startIndex));
     }
 
     parts.push(
@@ -58,11 +71,11 @@ function renderMessageText(text) {
     lastIndex = startIndex + rawUrl.length;
   }
 
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+  if (lastIndex < safeText.length) {
+    parts.push(safeText.slice(lastIndex));
   }
 
-  return parts.length ? parts : text;
+  return parts.length ? parts : safeText;
 }
 
 function IconPhoto() {
@@ -111,26 +124,6 @@ function IconPhone() {
   );
 }
 
-function IconEye() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function IconEyeOff() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="m3 3 18 18" />
-      <path d="M10.6 10.6A3 3 0 0 0 13.4 13.4" />
-      <path d="M9.9 5.2A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a18.5 18.5 0 0 1-3.2 4.2" />
-      <path d="M6.4 6.8C3.6 8.7 2 12 2 12s3.5 7 10 7a10.6 10.6 0 0 0 4.1-.8" />
-    </svg>
-  );
-}
-
 function App() {
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
@@ -145,6 +138,8 @@ function App() {
   const [adminMessage, setAdminMessage] = useState("");
   const [adminUsers, setAdminUsers] = useState([]);
   const [savingUserId, setSavingUserId] = useState(null);
+  const [savingPasswordUserId, setSavingPasswordUserId] = useState(null);
+  const [savingMfaUserId, setSavingMfaUserId] = useState(null);
   const [deletingRoomId, setDeletingRoomId] = useState("");
   const [imageUploadError, setImageUploadError] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -204,7 +199,15 @@ function App() {
     }
 
     const data = await response.json();
-    setAdminUsers(data.users || []);
+    setAdminUsers(
+      (data.users || []).map((user) => ({
+        ...user,
+        originalEmail: user.email || "",
+        originalMfaEnabled: Boolean(user.mfaEnabled),
+        mfaEnabled: Boolean(user.mfaEnabled),
+        newPassword: "",
+      }))
+    );
   };
 
   useEffect(() => {
@@ -924,6 +927,22 @@ function App() {
       return;
     }
 
+    const previousEmail = targetUser.originalEmail || "";
+    const nextEmail = String(targetUser.email || "").trim();
+
+    if (previousEmail === nextEmail) {
+      setAdminMessage("Email has not changed. / 邮箱没有变化。");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Change email for ${targetUser.username}?\n\nCurrent / 当前: ${previousEmail || "(empty)"}\nNew / 新: ${nextEmail || "(empty)"}\n\n确定要修改这个邮箱吗？`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     setSavingUserId(targetUserId);
     setAdminMessage("");
 
@@ -935,7 +954,7 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: targetUser.email,
+          email: nextEmail,
         }),
       });
       const data = await response.json();
@@ -947,7 +966,15 @@ function App() {
 
       setAdminUsers((currentUsers) =>
         currentUsers.map((user) =>
-          user.id === data.user.id ? data.user : user
+          user.id === data.user.id
+            ? {
+                ...data.user,
+                originalEmail: data.user.email || "",
+                originalMfaEnabled: Boolean(data.user.mfaEnabled),
+                mfaEnabled: Boolean(data.user.mfaEnabled),
+                newPassword: user.newPassword || "",
+              }
+            : user
         )
       );
       setAdminMessage(
@@ -957,6 +984,135 @@ function App() {
       setAdminMessage("Cannot connect to the server. / 无法连接服务器。");
     } finally {
       setSavingUserId(null);
+    }
+  };
+
+  const updateAdminUserPassword = async (targetUserId) => {
+    const targetUser = adminUsers.find((user) => user.id === targetUserId);
+    const newPassword = String(targetUser?.newPassword || "");
+
+    if (!targetUser || !newPassword) {
+      setAdminMessage("Enter a new password first. / 请先输入新密码。");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Set a new password for ${targetUser.username}?\n\nThe old password cannot be viewed.\n确定要直接为这个账号设置新密码吗？旧密码不会显示。`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSavingPasswordUserId(targetUserId);
+    setAdminMessage("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${targetUserId}/password`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          password: newPassword,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAdminMessage(data.message || "Password update failed / 密码更新失败");
+        return;
+      }
+
+      setAdminUsers((currentUsers) =>
+        currentUsers.map((user) =>
+          user.id === data.user.id
+            ? {
+                ...user,
+                newPassword: "",
+              }
+            : user
+        )
+      );
+      setAdminMessage(
+        `Updated password for ${data.user.username}. / 已更新 ${data.user.username} 的密码。`
+      );
+    } catch {
+      setAdminMessage("Cannot connect to the server. / 无法连接服务器。");
+    } finally {
+      setSavingPasswordUserId(null);
+    }
+  };
+
+  const updateAdminUserMfa = async (targetUserId) => {
+    const targetUser = adminUsers.find((user) => user.id === targetUserId);
+
+    if (!targetUser) {
+      return;
+    }
+
+    const nextMfaEnabled = Boolean(targetUser.mfaEnabled);
+
+    if (Boolean(targetUser.originalMfaEnabled) === nextMfaEnabled) {
+      setAdminMessage("MFA has not changed. / 邮箱验证没有变化。");
+      return;
+    }
+
+    if (nextMfaEnabled && !String(targetUser.email || "").trim()) {
+      setAdminMessage("Set an email before enabling MFA. / 启用邮箱验证前请先设置邮箱。");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `${nextMfaEnabled ? "Enable" : "Disable"} email verification for ${targetUser.username}?\n\n确定要${nextMfaEnabled ? "开启" : "关闭"}这个账号的邮箱验证吗？`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSavingMfaUserId(targetUserId);
+    setAdminMessage("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/admin/users/${targetUserId}/mfa`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          mfaEnabled: nextMfaEnabled,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAdminMessage(data.message || "MFA update failed / 邮箱验证更新失败");
+        return;
+      }
+
+      setAdminUsers((currentUsers) =>
+        currentUsers.map((user) =>
+          user.id === data.user.id
+            ? {
+                ...data.user,
+                originalEmail: data.user.email || "",
+                originalMfaEnabled: Boolean(data.user.mfaEnabled),
+                mfaEnabled: Boolean(data.user.mfaEnabled),
+                newPassword: user.newPassword || "",
+              }
+            : user
+        )
+      );
+      setAdminMessage(
+        `Updated email verification for ${data.user.username}. / 已更新 ${data.user.username} 的邮箱验证。`
+      );
+    } catch {
+      setAdminMessage("Cannot connect to the server. / 无法连接服务器。");
+    } finally {
+      setSavingMfaUserId(null);
     }
   };
 
@@ -1195,229 +1351,78 @@ function App() {
 
   if (!isLoggedIn) {
     return (
-      <div className="page">
-        <div className="login-card">
-          <h1>Private Chat / 私密聊天</h1>
-
-          <input
-            placeholder="Username / 用户名"
-            value={loginName}
-            disabled={Boolean(mfaToken)}
-            onChange={(e) => setLoginName(e.target.value)}
-          />
-
-          {mfaToken ? (
-            <input
-              placeholder="Verification code / 验证码"
-              value={mfaCode}
-              onChange={(e) => setMfaCode(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  verifyMfa();
-                }
-              }}
-            />
-          ) : (
-            <div className="password-field">
-              <input
-                placeholder="Password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    login();
-                  }
-                }}
-              />
-              <button
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                className="password-toggle"
-                title={showPassword ? "Hide password" : "Show password"}
-                type="button"
-                onClick={() => setShowPassword((current) => !current)}
-              >
-                {showPassword ? <IconEyeOff /> : <IconEye />}
-              </button>
-            </div>
-          )}
-
-          {loginError && <p className="login-error">{loginError}</p>}
-          {mfaToken && (
-            <p className="login-help">
-              Verification code sent to your email. / 验证码已发送到你的邮箱。
-            </p>
-          )}
-
-          <button onClick={mfaToken ? verifyMfa : login} disabled={isLoggingIn}>
-            {isLoggingIn
-              ? "Logging in..."
-              : mfaToken
-                ? "Verify / 验证"
-                : "Login / 登录"}
-          </button>
-        </div>
-      </div>
+      <LoginView
+        isLoggingIn={isLoggingIn}
+        login={login}
+        loginError={loginError}
+        loginName={loginName}
+        mfaCode={mfaCode}
+        mfaToken={mfaToken}
+        password={password}
+        setLoginName={setLoginName}
+        setMfaCode={setMfaCode}
+        setPassword={setPassword}
+        setShowPassword={setShowPassword}
+        showPassword={showPassword}
+        verifyMfa={verifyMfa}
+      />
     );
   }
 
   if (!joined) {
     return (
-      <div className="page">
-        <div className="room-panel">
-          <div className="room-panel-header">
-            <div>
-              <h1>Rooms / 房间</h1>
-              <p>{rooms.length} preset rooms / {rooms.length} 个预设聊天室</p>
-            </div>
-
-            <div className="header-actions">
-              <div className="current-user">Current user / 当前用户: {username}</div>
-              <button className="leave-button" onClick={logout}>
-                Logout / 登出
-              </button>
-            </div>
-          </div>
-
-          {roomNotice && <p className="room-notice">{roomNotice}</p>}
-          {adminMessage && <p className="room-notice">{adminMessage}</p>}
-
-          <div className="room-list">
-            {rooms.map((room) => {
-              const otherUsers = (room.onlineUsers || []).filter(
-                (onlineUser) => onlineUser !== username
-              );
-              const roomContent = (
-                <>
-                  <div className="room-main">
-                    <span className="room-title">
-                      <span>{room.name}</span>
-                      {room.unreadCount > 0 && (
-                        <span className="unread-badge" aria-label={`${room.unreadCount} unread messages`}>
-                          {room.unreadCount > 99 ? "99+" : room.unreadCount}
-                        </span>
-                      )}
-                    </span>
-                    <small>{room.id}</small>
-                  </div>
-                  <div className="room-presence">
-                    {otherUsers.length
-                      ? `Online / 在线: ${otherUsers.join(", ")}`
-                      : "No one else online / 暂无其他人在线"}
-                  </div>
-                </>
-              );
-
-              if (isAdmin) {
-                return (
-                  <button
-                    className="room-item"
-                    key={room.id}
-                    onClick={() => enterRoom(room.id)}
-                  >
-                    {roomContent}
-                  </button>
-                );
-              }
-
-              return (
-                <button
-                  className="room-item"
-                  key={room.id}
-                  onClick={() => enterRoom(room.id)}
-                >
-                  {roomContent}
-                </button>
-              );
-            })}
-          </div>
-
-          {isAdmin && (
-            <section className="admin-users-panel">
-              <div className="admin-users-header">
-                <h2>Users / 用户管理</h2>
-                <button className="admin-refresh-button" onClick={loadAdminUsers}>
-                  Refresh / 刷新
-                </button>
-              </div>
-
-              <div className="admin-users-list">
-                {adminUsers.map((user) => (
-                  <div className="admin-user-row" key={user.id}>
-                    <div className="admin-user-name">
-                      <strong>{user.username}</strong>
-                      {user.isAdmin && <span>Admin / 管理员</span>}
-                    </div>
-                    <input
-                      placeholder="Email / 邮箱"
-                      value={user.email}
-                      onChange={(event) => {
-                        const email = event.target.value;
-
-                        setAdminUsers((currentUsers) =>
-                          currentUsers.map((currentUser) =>
-                            currentUser.id === user.id
-                              ? {
-                                  ...currentUser,
-                                  email,
-                                }
-                              : currentUser
-                          )
-                        );
-                      }}
-                    />
-                    <button
-                      disabled={savingUserId === user.id}
-                      onClick={() => updateAdminUserEmail(user.id)}
-                    >
-                      {savingUserId === user.id ? "..." : "Save / 保存"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-        </div>
-      </div>
+      <RoomListView
+        adminMessage={adminMessage}
+        adminUsers={adminUsers}
+        enterRoom={enterRoom}
+        isAdmin={isAdmin}
+        loadAdminUsers={loadAdminUsers}
+        logout={logout}
+        roomNotice={roomNotice}
+        rooms={rooms}
+        savingMfaUserId={savingMfaUserId}
+        savingPasswordUserId={savingPasswordUserId}
+        savingUserId={savingUserId}
+        setAdminUsers={setAdminUsers}
+        updateAdminUserEmail={updateAdminUserEmail}
+        updateAdminUserMfa={updateAdminUserMfa}
+        updateAdminUserPassword={updateAdminUserPassword}
+        username={username}
+      />
     );
   }
 
   return (
     <div className="chat-page">
       <div className="chat-header">
-        <div>
+        <div className="chat-title-row">
           <h2>Room / 房间: {roomId}</h2>
-          <p>
-            In this room / 房间在线:{" "}
-            {currentRoomUsers.length
-              ? currentRoomUsers.join(", ")
-              : "No one online / 暂无人在线"}
-          </p>
-          {!isAdmin && currentRoomOtherUsers.length > 0 && (
-            <div className="voice-user-list">
-              {currentRoomOtherUsers.map((onlineUser) => (
-                <button
-                  className="voice-call-button"
-                  disabled={voiceCall.status !== "idle"}
-                  key={onlineUser}
-                  title={`Call ${onlineUser} / 呼叫 ${onlineUser}`}
-                  aria-label={`Call ${onlineUser} / 呼叫 ${onlineUser}`}
-                  onClick={() => startVoiceCall(onlineUser)}
-                >
-                  <IconPhone />
-                  <span>{onlineUser}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="header-actions">
-          <div className="current-user">Current user / 当前用户: {username}</div>
           <button className="leave-button" onClick={leaveRoom}>
             Leave / 离开
           </button>
+        </div>
+        <div className="room-online-row">
+          <span className="room-online-label">Online / 在线:</span>
+          {currentRoomUsers.length
+            ? currentRoomUsers.map((onlineUser) => (
+                <span className="room-user-chip" key={onlineUser}>
+                  <span>{onlineUser}</span>
+                  {onlineUser === username ? (
+                    <span className="self-chip">You / 自己</span>
+                  ) : !isAdmin ? (
+                    <button
+                      className="inline-call-button"
+                      disabled={voiceCall.status !== "idle"}
+                      title={`Call ${onlineUser} / 呼叫 ${onlineUser}`}
+                      aria-label={`Call ${onlineUser} / 呼叫 ${onlineUser}`}
+                      onClick={() => startVoiceCall(onlineUser)}
+                    >
+                      <IconPhone />
+                    </button>
+                  ) : null}
+                </span>
+              ))
+            : <span>No one online / 暂无人在线</span>}
         </div>
       </div>
 

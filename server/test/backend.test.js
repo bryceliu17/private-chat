@@ -6,8 +6,14 @@ const os = require("node:os");
 const path = require("node:path");
 const { after, before, describe, it } = require("node:test");
 
+if (!process.env.TEST_DATABASE_URL) {
+  describe("private chat backend", { skip: "Set TEST_DATABASE_URL to run PostgreSQL integration tests." }, () => {
+    it("requires a dedicated test database", () => {});
+  });
+} else {
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-chat-test-"));
 
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 process.env.PRIVATE_CHAT_DATA_DIR = path.join(testRoot, "data");
 process.env.PRIVATE_CHAT_UPLOAD_DIR = path.join(testRoot, "uploads");
 process.env.MESSAGE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("base64");
@@ -95,6 +101,13 @@ function getCookie(response) {
   return cookie ? cookie.split(";")[0] : "";
 }
 
+function getCookieMaxAge(response) {
+  const cookie = response.headers.get("set-cookie") || "";
+  const match = cookie.match(/Max-Age=(\d+)/i);
+
+  return match ? Number(match[1]) : null;
+}
+
 async function login(baseUrl, username, password) {
   const response = await fetch(`${baseUrl}/api/login`, {
     method: "POST",
@@ -110,6 +123,7 @@ async function login(baseUrl, username, password) {
   return {
     response,
     cookie: getCookie(response),
+    maxAge: getCookieMaxAge(response),
     body: await response.json().catch(() => null),
   };
 }
@@ -123,17 +137,15 @@ describe("private chat backend", () => {
 
   after(async () => {
     await server.close();
-    db.close();
+    await db.close();
     fs.rmSync(testRoot, {
       force: true,
       recursive: true,
     });
   });
 
-  it("seeds fixed users with password hashes", () => {
-    const users = db
-      .prepare("SELECT username, password FROM users ORDER BY username")
-      .all();
+  it("seeds fixed users with password hashes", async () => {
+    const users = await db.all("SELECT username, password FROM users ORDER BY username");
 
     assert.deepEqual(
       users.map((user) => user.username),
@@ -164,11 +176,12 @@ describe("private chat backend", () => {
     );
   });
 
-  it("stores text messages encrypted and returns decrypted history", () => {
-    const user = db
-      .prepare("SELECT id, username FROM users WHERE username = ?")
-      .get("chat-alpha");
-    const message = createTextMessage(
+  it("stores text messages encrypted and returns decrypted history", async () => {
+    const user = await db.get(
+      "SELECT id, username FROM users WHERE username = $1",
+      ["chat-alpha"],
+    );
+    const message = await createTextMessage(
       "room1",
       {
         userId: user.id,
@@ -183,9 +196,10 @@ describe("private chat backend", () => {
 
     assert.equal(message.text, "secret test message");
 
-    const row = db
-      .prepare("SELECT text, text_ciphertext, text_iv, text_tag FROM messages WHERE id = ?")
-      .get("test-message-1");
+    const row = await db.get(
+      "SELECT text, text_ciphertext, text_iv, text_tag FROM messages WHERE id = $1",
+      ["test-message-1"],
+    );
 
     assert.equal(row.text, null);
     assert.ok(row.text_ciphertext);
@@ -193,7 +207,7 @@ describe("private chat backend", () => {
     assert.ok(row.text_tag);
     assert.notEqual(row.text_ciphertext, "secret test message");
 
-    const historyMessage = getRoomMessages("room1").find(
+    const historyMessage = (await getRoomMessages("room1")).find(
       (item) => item.id === "test-message-1",
     );
 
@@ -210,14 +224,33 @@ describe("private chat backend", () => {
     assert.equal(validLogin.response.status, 200);
     assert.equal(validLogin.body.username, "chat-alpha");
     assert.ok(validLogin.cookie);
+    assert.equal(validLogin.maxAge, 60 * 60 * 24 * 30);
 
     const invalidLogin = await login(server.baseUrl, "chat-alpha", "bad-password");
 
     assert.equal(invalidLogin.response.status, 401);
   });
 
+  it("uses a short session for the admin account", async () => {
+    const adminLogin = await login(
+      server.baseUrl,
+      "admin-test",
+      "admin-test-password",
+    );
+    const userLogin = await login(
+      server.baseUrl,
+      "chat-alpha",
+      "alpha-test-password",
+    );
+
+    assert.equal(adminLogin.response.status, 200);
+    assert.equal(adminLogin.maxAge, 60 * 10);
+    assert.equal(userLogin.response.status, 200);
+    assert.equal(userLogin.maxAge, 60 * 60 * 24 * 30);
+  });
+
   it("locks an account after 5 failed logins in 10 minutes", async () => {
-    db.prepare("DELETE FROM login_attempts WHERE username_key = ?").run("chat-beta");
+    await db.run("DELETE FROM login_attempts WHERE username_key = $1", ["chat-beta"]);
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const failedLogin = await login(server.baseUrl, "chat-beta", "bad-password");
@@ -234,9 +267,10 @@ describe("private chat backend", () => {
     assert.equal(lockedLogin.response.status, 429);
     assert.match(lockedLogin.body.message, /Too many login attempts/);
 
-    const lock = db
-      .prepare("SELECT failed_count, locked_until FROM login_attempts WHERE username_key = ?")
-      .get("chat-beta");
+    const lock = await db.get(
+      "SELECT failed_count, locked_until FROM login_attempts WHERE username_key = $1",
+      ["chat-beta"],
+    );
 
     assert.equal(lock.failed_count, 5);
     assert.ok(lock.locked_until > Date.now());
@@ -285,6 +319,38 @@ describe("private chat backend", () => {
 
     assert.equal(updateResponse.status, 200);
     assert.equal(updateBody.user.email, "delta@example.com");
+
+    const passwordResponse = await fetch(
+      `${server.baseUrl}/api/admin/users/${targetUser.id}/password`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: adminLogin.cookie,
+        },
+        body: JSON.stringify({
+          password: "new-delta-test-password",
+        }),
+      },
+    );
+    const passwordBody = await passwordResponse.json();
+
+    assert.equal(passwordResponse.status, 200);
+    assert.equal(passwordBody.user.username, "chat-delta");
+
+    const oldPasswordLogin = await login(
+      server.baseUrl,
+      "chat-delta",
+      "delta-test-password",
+    );
+    const newPasswordLogin = await login(
+      server.baseUrl,
+      "chat-delta",
+      "new-delta-test-password",
+    );
+
+    assert.equal(oldPasswordLogin.response.status, 401);
+    assert.equal(newPasswordLogin.response.status, 200);
   });
 
   it("rejects admin from chat upload routes", async () => {
@@ -308,3 +374,4 @@ describe("private chat backend", () => {
     assert.equal(response.status, 403);
   });
 });
+}

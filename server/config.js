@@ -13,6 +13,15 @@ const DB_FILE = path.join(DATA_DIR, "private-chat.db");
 const UPLOAD_DIR = process.env.PRIVATE_CHAT_UPLOAD_DIR || path.join(__dirname, "uploads");
 const PHOTO_UPLOAD_DIR = path.join(UPLOAD_DIR, "photos");
 const AUDIO_UPLOAD_DIR = path.join(UPLOAD_DIR, "audio");
+const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  process.env.SUPABASE_API_URL ||
+  "";
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
+const SUPABASE_PHOTO_BUCKET = process.env.SUPABASE_PHOTO_BUCKET || "photos";
+const SUPABASE_AUDIO_BUCKET = process.env.SUPABASE_AUDIO_BUCKET || "audio";
 
 function isAllowedClientOrigin(origin) {
   try {
@@ -66,9 +75,14 @@ module.exports = {
   MFA_ENABLED: false,
   PHOTO_UPLOAD_DIR,
   PORT: 5001,
+  ADMIN_SESSION_MAX_AGE_MS: 1000 * 60 * 10,
   SESSION_COOKIE: "private_chat_session",
   SESSION_COOKIE_SECURE: process.env.SESSION_COOKIE_SECURE === "true",
   SESSION_MAX_AGE_MS: 1000 * 60 * 60 * 24 * 30,
+  SUPABASE_AUDIO_BUCKET,
+  SUPABASE_PHOTO_BUCKET,
+  SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_URL,
   UPLOAD_DIR,
   isAllowedClientOrigin,
 };

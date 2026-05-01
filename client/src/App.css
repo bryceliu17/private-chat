@@ -277,20 +277,25 @@ body {
 
 .admin-users-list {
   display: grid;
-  gap: 8px;
+  gap: 12px;
 }
 
 .admin-user-row {
   display: grid;
-  grid-template-columns: minmax(90px, 0.6fr) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: minmax(110px, 0.55fr) repeat(3, minmax(180px, 1fr));
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
 }
 
 .admin-user-name {
   display: grid;
   gap: 2px;
   min-width: 0;
+  padding-top: 9px;
 }
 
 .admin-user-name strong {
@@ -304,15 +309,57 @@ body {
   font-size: 12px;
 }
 
+.admin-user-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-user-field span {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-user-field small {
+  min-height: 16px;
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .admin-user-row input {
+  width: 100%;
   min-width: 0;
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 8px;
 }
 
-.admin-user-row button {
-  padding: 10px 12px;
+.admin-user-toggle input {
+  width: auto;
+  min-width: auto;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.admin-user-actions {
+  grid-column: 2 / 5;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.admin-user-actions button {
+  min-height: 40px;
+  padding: 9px 12px;
   border: none;
   border-radius: 8px;
   background: #2563eb;
@@ -321,7 +368,7 @@ body {
   white-space: nowrap;
 }
 
-.admin-user-row button:disabled {
+.admin-user-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.7;
 }
@@ -338,23 +385,88 @@ body {
 }
 
 .chat-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px;
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px;
   border-bottom: 1px solid #eee;
   background: #ffffff;
 }
 
-.chat-header h2 {
-  margin: 0;
-  font-size: 20px;
+.chat-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
 }
 
-.chat-header p {
-  margin: 4px 0 0;
+.chat-title-row h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-online-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   color: #666;
+  font-size: 14px;
+}
+
+.room-online-label {
+  color: #4b5563;
+  font-weight: 700;
+}
+
+.room-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 2px 5px 2px 0;
+  color: #374151;
+  font-weight: 600;
+}
+
+.self-chip {
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.inline-call-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.inline-call-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.inline-call-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .voice-user-list {
@@ -527,20 +639,24 @@ body {
 .message-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 12px;
   color: #666;
   padding: 0 4px;
+  line-height: 1.25;
 }
 
 .message-author {
   color: #1f2937;
   font-size: 13px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .message-time {
   color: #6b7280;
+  white-space: nowrap;
 }
 
 .message-time::before {
@@ -716,8 +832,7 @@ body {
   }
 
   .chat-header {
-    align-items: flex-start;
-    flex-direction: column;
+    padding: 10px 12px;
   }
 
   .voice-call-panel {
@@ -742,6 +857,23 @@ body {
   .room-presence {
     max-width: none;
     text-align: left;
+  }
+
+  .chat-title-row .leave-button {
+    min-height: 40px;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
+  .chat-title-row h2 {
+    font-size: 18px;
+  }
+
+  .room-online-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    white-space: nowrap;
   }
 
   .message-stack {

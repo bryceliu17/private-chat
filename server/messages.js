@@ -2,16 +2,24 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const {
-  AUDIO_UPLOAD_DIR,
   MAX_AUDIO_SIZE,
   MAX_PHOTO_SIZE,
-  PHOTO_UPLOAD_DIR,
 } = require("./config");
 const { db } = require("./db");
 const { decryptText, encryptText } = require("./encryption");
+const {
+  deleteLocalUpload,
+  deleteObject,
+  getBucketForKind,
+  getClientFileUrl,
+  getLocalUploadInfo,
+  getStoragePathForUpload,
+  storageEnabled,
+  uploadObject,
+} = require("./storage");
 
-function getRoom(roomId) {
-  return db.prepare("SELECT id, name FROM rooms WHERE id = ?").get(roomId) || null;
+async function getRoom(roomId) {
+  return db.get("SELECT id, name FROM rooms WHERE id = $1", [roomId]);
 }
 
 function rowToMessage(row) {
@@ -26,7 +34,7 @@ function rowToMessage(row) {
       ...message,
       type: "image",
       filename: row.filename,
-      imageUrl: row.image_url,
+      imageUrl: getClientFileUrl(row.image_url),
     };
   }
 
@@ -35,7 +43,7 @@ function rowToMessage(row) {
       ...message,
       type: "audio",
       filename: row.filename,
-      audioUrl: row.audio_url,
+      audioUrl: getClientFileUrl(row.audio_url),
     };
   }
 
@@ -51,20 +59,17 @@ function rowToMessage(row) {
   };
 }
 
-function getRoomMessages(roomId) {
-  return db
-    .prepare(`
+async function getRoomMessages(roomId) {
+  return (await db.all(`
       SELECT messages.*, users.username
       FROM messages
       JOIN users ON users.id = messages.user_id
-      WHERE messages.room_id = ?
+      WHERE messages.room_id = $1
       ORDER BY messages.created_at ASC
-    `)
-    .all(roomId)
-    .map(rowToMessage);
+    `, [roomId])).map(rowToMessage);
 }
 
-function createTextMessage(roomId, session, text, {
+async function createTextMessage(roomId, session, text, {
   createdAt = Date.now(),
   id = `${createdAt}-${crypto.randomUUID()}`,
 } = {}) {
@@ -83,7 +88,7 @@ function createTextMessage(roomId, session, text, {
     createdAt,
   };
 
-  db.prepare(`
+  await db.run(`
     INSERT INTO messages (
       id,
       room_id,
@@ -94,8 +99,8 @@ function createTextMessage(roomId, session, text, {
       text_tag,
       created_at
     )
-    VALUES (?, ?, ?, 'text', ?, ?, ?, ?)
-  `).run(
+    VALUES ($1, $2, $3, 'text', $4, $5, $6, $7)
+  `, [
     message.id,
     roomId,
     session.userId,
@@ -103,21 +108,21 @@ function createTextMessage(roomId, session, text, {
     encrypted.iv,
     encrypted.tag,
     message.createdAt,
-  );
+  ]);
 
   return message;
 }
 
-function markRoomRead(userId, roomId, readAt = Date.now()) {
-  db.prepare(`
+async function markRoomRead(userId, roomId, readAt = Date.now()) {
+  await db.run(`
     INSERT INTO room_reads (user_id, room_id, last_read_at)
-    VALUES (?, ?, ?)
+    VALUES ($1, $2, $3)
     ON CONFLICT(user_id, room_id) DO UPDATE SET
-      last_read_at = max(room_reads.last_read_at, excluded.last_read_at)
-  `).run(userId, roomId, readAt);
+      last_read_at = GREATEST(room_reads.last_read_at, excluded.last_read_at)
+  `, [userId, roomId, readAt]);
 }
 
-function markActiveRoomUsersRead(io, getSocketSession, roomId, readAt = Date.now()) {
+async function markActiveRoomUsersRead(io, getSocketSession, roomId, readAt = Date.now()) {
   const roomSocketIds = io.sockets.adapter.rooms.get(roomId);
 
   if (!roomSocketIds) {
@@ -126,52 +131,65 @@ function markActiveRoomUsersRead(io, getSocketSession, roomId, readAt = Date.now
 
   for (const socketId of roomSocketIds) {
     const socket = io.sockets.sockets.get(socketId);
-    const session = socket ? getSocketSession(socket) : null;
+    const session = socket ? await getSocketSession(socket) : null;
 
     if (!session || session.isAdmin) {
       continue;
     }
 
-    markRoomRead(session.userId, roomId, readAt);
+    await markRoomRead(session.userId, roomId, readAt);
   }
 }
 
-function deleteUploadedFilesForMessages(messages) {
-  messages.forEach((message) => {
-    const uploads = [
-      {
-        baseDir: PHOTO_UPLOAD_DIR,
-        url: message.image_url,
-        prefix: "/uploads/photos/",
-      },
-      {
-        baseDir: AUDIO_UPLOAD_DIR,
-        url: message.audio_url,
-        prefix: "/uploads/audio/",
-      },
-    ];
-
-    uploads.forEach(({ baseDir, prefix, url }) => {
-      if (!url || !url.startsWith(prefix)) {
-        return;
+async function deleteUploadedFilesForMessages(messages) {
+  for (const message of messages) {
+    for (const url of [message.image_url, message.audio_url]) {
+      if (!url) {
+        continue;
       }
 
-      const filename = path.basename(url);
-      const uploadPath = path.join(baseDir, filename);
-
-      if (!uploadPath.startsWith(baseDir)) {
-        return;
+      if (url.startsWith("supabase://")) {
+        try {
+          await deleteObject(url);
+        } catch (error) {
+          console.error(`Failed to delete Supabase upload ${url}:`, error);
+        }
+        continue;
       }
 
-      try {
-        fs.rmSync(uploadPath, {
-          force: true,
-        });
-      } catch (error) {
-        console.error(`Failed to delete upload ${uploadPath}:`, error);
-      }
+      deleteLocalUpload(url);
+    }
+  }
+}
+
+async function saveUpload({ kind, roomId, filename, buffer, contentType }) {
+  if (storageEnabled) {
+    const bucket = getBucketForKind(kind);
+    const storagePath = getStoragePathForUpload(kind, roomId, filename);
+    const storageRef = await uploadObject({
+      bucket,
+      storagePath,
+      buffer,
+      contentType,
     });
-  });
+
+    return {
+      dbUrl: storageRef,
+      clientUrl: getClientFileUrl(storageRef),
+      cleanup: () => deleteObject(storageRef),
+    };
+  }
+
+  const { uploadDir, clientUrl } = getLocalUploadInfo(kind, filename);
+  const uploadPath = path.join(uploadDir, filename);
+
+  fs.writeFileSync(uploadPath, buffer);
+
+  return {
+    dbUrl: clientUrl,
+    clientUrl,
+    cleanup: () => fs.rmSync(uploadPath, { force: true }),
+  };
 }
 
 function registerRoomRoutes(app, {
@@ -182,22 +200,24 @@ function registerRoomRoutes(app, {
   requireChatUser,
   requireSession,
 }) {
-  app.get("/api/rooms", (req, res) => {
-    const session = requireSession(req, res);
+  app.get("/api/rooms", async (req, res) => {
+    const session = await requireSession(req, res);
 
     if (!session) {
       return;
     }
 
+    const rooms = await presence.getRoomsWithPresence(session);
+
     res.json({
       username: session.username,
       isAdmin: session.isAdmin,
-      rooms: presence.getRoomsWithPresence(session),
+      rooms,
     });
   });
 
-  app.post("/api/rooms/:roomId/photos", (req, res) => {
-    const session = requireChatUser(req, res);
+  app.post("/api/rooms/:roomId/photos", async (req, res) => {
+    const session = await requireChatUser(req, res);
 
     if (!session) {
       return;
@@ -205,7 +225,7 @@ function registerRoomRoutes(app, {
 
     const roomId = String(req.params.roomId || "").trim();
 
-    if (!getRoom(roomId)) {
+    if (!(await getRoom(roomId))) {
       return res.status(404).json({
         message: "Room not found",
       });
@@ -235,40 +255,45 @@ function registerRoomRoutes(app, {
 
     const id = crypto.randomUUID();
     const filename = `${id}.${extension}`;
-    const uploadPath = path.join(PHOTO_UPLOAD_DIR, filename);
     const createdAt = Date.now();
+    const upload = await saveUpload({
+      kind: "image",
+      roomId,
+      filename,
+      buffer,
+      contentType: `image/${extension === "jpg" ? "jpeg" : extension}`,
+    });
 
     const message = {
       id: `${Date.now()}-${id}`,
       type: "image",
       filename: originalName,
       username: session.username,
-      imageUrl: `/uploads/photos/${filename}`,
+      imageUrl: upload.clientUrl,
       createdAt,
     };
 
     try {
-      fs.writeFileSync(uploadPath, buffer);
-      db.prepare(`
+      await db.run(`
         INSERT INTO messages (id, room_id, user_id, type, image_url, filename, created_at)
-        VALUES (?, ?, ?, 'image', ?, ?, ?)
-      `).run(message.id, roomId, session.userId, message.imageUrl, originalName, createdAt);
+        VALUES ($1, $2, $3, 'image', $4, $5, $6)
+      `, [message.id, roomId, session.userId, upload.dbUrl, originalName, createdAt]);
     } catch (error) {
-      fs.rmSync(uploadPath, { force: true });
+      await upload.cleanup();
       throw error;
     }
 
     io.to(roomId).emit("receive_message", message);
-    markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
-    presence.emitRoomsPresence();
+    await markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
+    await presence.emitRoomsPresence();
 
     return res.status(201).json({
       message,
     });
   });
 
-  app.post("/api/rooms/:roomId/audio", (req, res) => {
-    const session = requireChatUser(req, res);
+  app.post("/api/rooms/:roomId/audio", async (req, res) => {
+    const session = await requireChatUser(req, res);
 
     if (!session) {
       return;
@@ -276,7 +301,7 @@ function registerRoomRoutes(app, {
 
     const roomId = String(req.params.roomId || "").trim();
 
-    if (!getRoom(roomId)) {
+    if (!(await getRoom(roomId))) {
       return res.status(404).json({
         message: "Room not found",
       });
@@ -305,40 +330,45 @@ function registerRoomRoutes(app, {
 
     const id = crypto.randomUUID();
     const filename = `${id}.${extension}`;
-    const uploadPath = path.join(AUDIO_UPLOAD_DIR, filename);
     const createdAt = Date.now();
+    const upload = await saveUpload({
+      kind: "audio",
+      roomId,
+      filename,
+      buffer,
+      contentType: match[0].slice(5, match[0].indexOf(";base64,")),
+    });
 
     const message = {
       id: `${Date.now()}-${id}`,
       type: "audio",
       filename: originalName,
       username: session.username,
-      audioUrl: `/uploads/audio/${filename}`,
+      audioUrl: upload.clientUrl,
       createdAt,
     };
 
     try {
-      fs.writeFileSync(uploadPath, buffer);
-      db.prepare(`
+      await db.run(`
         INSERT INTO messages (id, room_id, user_id, type, audio_url, filename, created_at)
-        VALUES (?, ?, ?, 'audio', ?, ?, ?)
-      `).run(message.id, roomId, session.userId, message.audioUrl, originalName, createdAt);
+        VALUES ($1, $2, $3, 'audio', $4, $5, $6)
+      `, [message.id, roomId, session.userId, upload.dbUrl, originalName, createdAt]);
     } catch (error) {
-      fs.rmSync(uploadPath, { force: true });
+      await upload.cleanup();
       throw error;
     }
 
     io.to(roomId).emit("receive_message", message);
-    markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
-    presence.emitRoomsPresence();
+    await markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
+    await presence.emitRoomsPresence();
 
     return res.status(201).json({
       message,
     });
   });
 
-  app.delete("/api/rooms/:roomId/messages", (req, res) => {
-    const session = requireAdmin(req, res);
+  app.delete("/api/rooms/:roomId/messages", async (req, res) => {
+    const session = await requireAdmin(req, res);
 
     if (!session) {
       return;
@@ -346,25 +376,26 @@ function registerRoomRoutes(app, {
 
     const roomId = String(req.params.roomId || "").trim();
 
-    if (!getRoom(roomId)) {
+    if (!(await getRoom(roomId))) {
       return res.status(404).json({
         message: "Room not found",
       });
     }
 
-    const messages = db
-      .prepare("SELECT id, image_url, audio_url FROM messages WHERE room_id = ?")
-      .all(roomId);
+    const messages = await db.all(
+      "SELECT id, image_url, audio_url FROM messages WHERE room_id = $1",
+      [roomId],
+    );
 
-    deleteUploadedFilesForMessages(messages);
-    db.prepare("DELETE FROM messages WHERE room_id = ?").run(roomId);
+    await deleteUploadedFilesForMessages(messages);
+    await db.run("DELETE FROM messages WHERE room_id = $1", [roomId]);
 
     io.to(roomId).emit("chat_history", []);
     io.to(roomId).emit("system_message", {
       text: "Chat history was deleted by admin. / 聊天记录已被管理员删除。",
       createdAt: Date.now(),
     });
-    presence.emitRoomsPresence();
+    await presence.emitRoomsPresence();
 
     return res.json({
       ok: true,
@@ -372,17 +403,18 @@ function registerRoomRoutes(app, {
     });
   });
 
-  app.delete("/api/messages/:messageId", (req, res) => {
-    const session = requireAdmin(req, res);
+  app.delete("/api/messages/:messageId", async (req, res) => {
+    const session = await requireAdmin(req, res);
 
     if (!session) {
       return;
     }
 
     const messageId = String(req.params.messageId || "").trim();
-    const message = db
-      .prepare("SELECT id, room_id, image_url, audio_url FROM messages WHERE id = ?")
-      .get(messageId);
+    const message = await db.get(
+      "SELECT id, room_id, image_url, audio_url FROM messages WHERE id = $1",
+      [messageId],
+    );
 
     if (!message) {
       return res.status(404).json({
@@ -390,13 +422,13 @@ function registerRoomRoutes(app, {
       });
     }
 
-    deleteUploadedFilesForMessages([message]);
-    db.prepare("DELETE FROM messages WHERE id = ?").run(message.id);
+    await deleteUploadedFilesForMessages([message]);
+    await db.run("DELETE FROM messages WHERE id = $1", [message.id]);
 
     io.to(message.room_id).emit("message_deleted", {
       id: message.id,
     });
-    presence.emitRoomsPresence();
+    await presence.emitRoomsPresence();
 
     return res.json({
       ok: true,

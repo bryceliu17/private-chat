@@ -14,43 +14,43 @@ function createPresence(io) {
     return Array.from(new Set(users.values())).sort((a, b) => a.localeCompare(b));
   }
 
-  function getUnreadCount(roomId, session) {
+  async function getUnreadCount(roomId, session) {
     if (!session || session.isAdmin) {
       return 0;
     }
 
-    const row = db
-      .prepare(`
+    const row = await db.get(`
         SELECT COUNT(*) AS unread_count
         FROM messages
         LEFT JOIN room_reads
-          ON room_reads.user_id = ?
+          ON room_reads.user_id = $1
           AND room_reads.room_id = messages.room_id
-        WHERE messages.room_id = ?
-          AND messages.user_id != ?
+        WHERE messages.room_id = $2
+          AND messages.user_id != $3
           AND messages.created_at > COALESCE(room_reads.last_read_at, 0)
-      `)
-      .get(session.userId, roomId, session.userId);
+      `, [session.userId, roomId, session.userId]);
 
-    return row?.unread_count || 0;
+    return Number(row?.unread_count || 0);
   }
 
-  function getRoomsWithPresence(session = null) {
-    return db
-      .prepare("SELECT id, name FROM rooms ORDER BY id")
-      .all()
-      .map((room) => ({
+  async function getRoomsWithPresence(session = null) {
+    const rooms = await db.all("SELECT id, name FROM rooms ORDER BY id");
+
+    return Promise.all(
+      rooms.map(async (room) => ({
         ...room,
         onlineUsers: getRoomOnlineUsers(room.id),
-        unreadCount: getUnreadCount(room.id, session),
-      }));
+        unreadCount: await getUnreadCount(room.id, session),
+      })),
+    );
   }
 
-  function emitRoomsPresence() {
+  async function emitRoomsPresence() {
     if (resolveSocketSession) {
       for (const socket of io.sockets.sockets.values()) {
+        const session = await resolveSocketSession(socket);
         socket.emit("rooms_presence", {
-          rooms: getRoomsWithPresence(resolveSocketSession(socket)),
+          rooms: await getRoomsWithPresence(session),
         });
       }
 
@@ -58,7 +58,7 @@ function createPresence(io) {
     }
 
     io.emit("rooms_presence", {
-      rooms: getRoomsWithPresence(),
+      rooms: await getRoomsWithPresence(),
     });
   }
 
@@ -66,7 +66,7 @@ function createPresence(io) {
     resolveSocketSession = resolver;
   }
 
-  function removeUserFromOtherRooms(username, targetRoomId) {
+  async function removeUserFromOtherRooms(username, targetRoomId) {
     const removedRooms = new Set();
 
     for (const [roomId, users] of roomPresence.entries()) {
@@ -109,7 +109,7 @@ function createPresence(io) {
     }
 
     if (removedRooms.size) {
-      emitRoomsPresence();
+      await emitRoomsPresence();
     }
   }
 
@@ -125,7 +125,7 @@ function createPresence(io) {
     roomPresence.get(roomId).set(socket.id, username);
   }
 
-  function removeSocketPresence(socket, { announce = false } = {}) {
+  async function removeSocketPresence(socket, { announce = false } = {}) {
     const roomId = socket.data.roomId;
     const username = socket.data.username;
 
@@ -154,7 +154,7 @@ function createPresence(io) {
       });
     }
 
-    emitRoomsPresence();
+    await emitRoomsPresence();
   }
 
   return {

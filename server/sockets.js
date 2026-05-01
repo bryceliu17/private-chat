@@ -63,18 +63,18 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
     });
   }
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     console.log("User connected:", socket.id);
-    const initialSession = getSocketSession(socket);
+    const initialSession = await getSocketSession(socket);
     socket.emit("rooms_presence", {
-      rooms: presence.getRoomsWithPresence(initialSession),
+      rooms: await presence.getRoomsWithPresence(initialSession),
     });
 
-    socket.on("join_room", ({ roomId }) => {
+    socket.on("join_room", async ({ roomId }) => {
       const cleanRoomId = String(roomId || "").trim();
-      const session = getSocketSession(socket);
+      const session = await getSocketSession(socket);
 
-      if (!cleanRoomId || !session || !getRoom(cleanRoomId)) {
+      if (!cleanRoomId || !session || !(await getRoom(cleanRoomId))) {
         return;
       }
 
@@ -87,23 +87,23 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         socket.data.roomId = cleanRoomId;
         socket.data.username = null;
         socket.data.isAdmin = true;
-        socket.emit("chat_history", getRoomMessages(cleanRoomId));
+        socket.emit("chat_history", await getRoomMessages(cleanRoomId));
         return;
       }
 
-      presence.removeUserFromOtherRooms(session.username, cleanRoomId);
+      await presence.removeUserFromOtherRooms(session.username, cleanRoomId);
 
       if (socket.data.roomId && socket.data.roomId !== cleanRoomId) {
-        presence.removeSocketPresence(socket, { announce: true });
+        await presence.removeSocketPresence(socket, { announce: true });
       }
 
       presence.addSocketToRoom(socket, cleanRoomId, session.username);
-      markRoomRead(session.userId, cleanRoomId);
+      await markRoomRead(session.userId, cleanRoomId);
 
       console.log(`${session.username} joined room ${cleanRoomId}`);
 
-      socket.emit("chat_history", getRoomMessages(cleanRoomId));
-      presence.emitRoomsPresence();
+      socket.emit("chat_history", await getRoomMessages(cleanRoomId));
+      await presence.emitRoomsPresence();
 
       socket.to(cleanRoomId).emit("system_message", {
         text: `${session.username} joined the chat`,
@@ -111,9 +111,9 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       });
     });
 
-    socket.on("leave_room", ({ roomId }) => {
+    socket.on("leave_room", async ({ roomId }) => {
       const cleanRoomId = String(roomId || "").trim();
-      const session = getSocketSession(socket);
+      const session = await getSocketSession(socket);
 
       if (!cleanRoomId || !session) {
         return;
@@ -133,13 +133,13 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       }
 
       console.log(`${session.username} left room ${cleanRoomId}`);
-      presence.removeSocketPresence(socket, { announce: true });
+      await presence.removeSocketPresence(socket, { announce: true });
     });
 
-    socket.on("voice_call_request", ({ roomId, to }) => {
+    socket.on("voice_call_request", async ({ roomId, to }) => {
       const cleanRoomId = String(roomId || "").trim();
       const targetUsername = String(to || "").trim();
-      const session = getSocketSession(socket);
+      const session = await getSocketSession(socket);
 
       if (
         !cleanRoomId ||
@@ -147,7 +147,7 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         !session ||
         session.isAdmin ||
         socket.data.roomId !== cleanRoomId ||
-        !getRoom(cleanRoomId)
+        !(await getRoom(cleanRoomId))
       ) {
         return;
       }
@@ -203,9 +203,9 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       });
     });
 
-    socket.on("voice_call_accept", ({ callId }) => {
+    socket.on("voice_call_accept", async ({ callId }) => {
       const call = roomCalls.get(String(callId || ""));
-      const session = getSocketSession(socket);
+      const session = await getSocketSession(socket);
 
       if (!call || !session || call.calleeSocketId !== socket.id) {
         return;
@@ -223,9 +223,9 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       });
     });
 
-    socket.on("voice_call_reject", ({ callId }) => {
+    socket.on("voice_call_reject", async ({ callId }) => {
       const call = roomCalls.get(String(callId || ""));
-      const session = getSocketSession(socket);
+      const session = await getSocketSession(socket);
 
       if (!call || !session || call.calleeSocketId !== socket.id) {
         return;
@@ -268,12 +268,12 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       endVoiceCall(call, "hangup", socket.id);
     });
 
-    socket.on("send_message", ({ roomId, text }) => {
+    socket.on("send_message", async ({ roomId, text }) => {
       const cleanRoomId = String(roomId || "").trim();
       const cleanText = String(text || "").trim();
-      const session = getSocketSession(socket);
+      const session = await getSocketSession(socket);
 
-      if (!cleanRoomId || !session || !cleanText || !getRoom(cleanRoomId)) {
+      if (!cleanRoomId || !session || !cleanText || !(await getRoom(cleanRoomId))) {
         return;
       }
 
@@ -281,16 +281,16 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         return;
       }
 
-      const message = createTextMessage(cleanRoomId, session, cleanText, {
+      const message = await createTextMessage(cleanRoomId, session, cleanText, {
         id: `${Date.now()}-${socket.id}`,
       });
 
       io.to(cleanRoomId).emit("receive_message", message);
-      markActiveRoomUsersRead(io, getSocketSession, cleanRoomId, message.createdAt);
-      presence.emitRoomsPresence();
+      await markActiveRoomUsersRead(io, getSocketSession, cleanRoomId, message.createdAt);
+      await presence.emitRoomsPresence();
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       endVoiceCall(getSocketCall(socket), "disconnected", socket.id);
 
       if (socket.data.isAdmin && socket.data.roomId) {
@@ -298,7 +298,7 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         return;
       }
 
-      presence.removeSocketPresence(socket, { announce: true });
+      await presence.removeSocketPresence(socket, { announce: true });
       console.log("User disconnected:", socket.id);
     });
   });

@@ -12,6 +12,7 @@ const {
 } = require("./auth");
 const { registerRoomRoutes } = require("./messages");
 const { createPresence } = require("./presence");
+const { registerStorageRoutes } = require("./storage");
 const { registerSocketHandlers } = require("./sockets");
 
 const corsOptions = {
@@ -44,6 +45,9 @@ const presence = createPresence(io);
 presence.setSocketSessionResolver(getSocketSession);
 
 registerAuthRoutes(app);
+registerStorageRoutes(app, {
+  requireSession,
+});
 registerRoomRoutes(app, {
   getSocketSession,
   io,

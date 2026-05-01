@@ -1,7 +1,13 @@
 node_modules/
 .env
 .env.local
+.env.*.local
 .DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
 dist/
 build/
 .vite/
@@ -9,6 +15,7 @@ client/.vite/
 .vscode/
 server/data/
 server/uploads/
+server/migrations/init.sql
 tools/
 deploy/nginx/logs/
 deploy/nginx/temp/

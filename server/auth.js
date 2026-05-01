@@ -1,18 +1,18 @@
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
 const {
+  ADMIN_SESSION_MAX_AGE_MS,
   ADMIN_USERNAME,
   LOGIN_LOCKOUT_MS,
   LOGIN_MAX_FAILED_ATTEMPTS,
   LOGIN_WINDOW_MS,
   MFA_CODE_MAX_AGE_MS,
-  MFA_ENABLED,
   SESSION_COOKIE,
   SESSION_COOKIE_SECURE,
   SESSION_MAX_AGE_MS,
 } = require("./config");
 const { db } = require("./db");
-const { verifyPassword } = require("./security");
+const { hashPassword, verifyPassword } = require("./security");
 
 const pendingMfa = new Map();
 const LOCKOUT_MESSAGE =
@@ -31,37 +31,38 @@ function parseCookies(cookieHeader = "") {
   }, {});
 }
 
-function createSession(res, user) {
+async function createSession(res, user) {
   const sessionId = crypto.randomUUID();
-  const expiresAt = Date.now() + SESSION_MAX_AGE_MS;
+  const maxAge = user.username === ADMIN_USERNAME
+    ? ADMIN_SESSION_MAX_AGE_MS
+    : SESSION_MAX_AGE_MS;
+  const expiresAt = Date.now() + maxAge;
 
-  db.prepare("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)").run(
+  await db.run("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)", [
     sessionId,
     user.id,
     expiresAt,
-  );
+  ]);
 
   res.cookie(SESSION_COOKIE, sessionId, {
     httpOnly: true,
     sameSite: "lax",
     secure: SESSION_COOKIE_SECURE,
-    maxAge: SESSION_MAX_AGE_MS,
+    maxAge,
   });
 }
 
-function getSession(sessionId) {
+async function getSession(sessionId) {
   if (!sessionId) {
     return null;
   }
 
-  const session = db
-    .prepare(`
+  const session = await db.get(`
       SELECT sessions.id, sessions.user_id, users.username
       FROM sessions
       JOIN users ON users.id = sessions.user_id
-      WHERE sessions.id = ? AND sessions.expires_at > ?
-    `)
-    .get(sessionId, Date.now());
+      WHERE sessions.id = $1 AND sessions.expires_at > $2
+    `, [sessionId, Date.now()]);
 
   if (!session) {
     return null;
@@ -75,18 +76,18 @@ function getSession(sessionId) {
   };
 }
 
-function getRequestSession(req) {
+async function getRequestSession(req) {
   const cookies = parseCookies(req.headers.cookie);
   return getSession(cookies[SESSION_COOKIE]);
 }
 
-function getSocketSession(socket) {
+async function getSocketSession(socket) {
   const cookies = parseCookies(socket.handshake.headers.cookie);
   return getSession(cookies[SESSION_COOKIE]);
 }
 
-function requireSession(req, res) {
-  const session = getRequestSession(req);
+async function requireSession(req, res) {
+  const session = await getRequestSession(req);
 
   if (!session) {
     res.status(401).json({
@@ -98,8 +99,8 @@ function requireSession(req, res) {
   return session;
 }
 
-function requireChatUser(req, res) {
-  const session = requireSession(req, res);
+async function requireChatUser(req, res) {
+  const session = await requireSession(req, res);
 
   if (!session) {
     return null;
@@ -115,8 +116,8 @@ function requireChatUser(req, res) {
   return session;
 }
 
-function requireAdmin(req, res) {
-  const session = requireSession(req, res);
+async function requireAdmin(req, res) {
+  const session = await requireSession(req, res);
 
   if (!session) {
     return null;
@@ -137,6 +138,7 @@ function serializeAdminUser(user) {
     id: user.id,
     username: user.username,
     email: user.email || "",
+    mfaEnabled: Boolean(user.mfa_enabled),
     isAdmin: user.username === ADMIN_USERNAME,
   };
 }
@@ -145,10 +147,11 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function getLoginLock(usernameKey, now = Date.now()) {
-  const attempt = db
-    .prepare("SELECT failed_count, first_failed_at, locked_until FROM login_attempts WHERE username_key = ?")
-    .get(usernameKey);
+async function getLoginLock(usernameKey, now = Date.now()) {
+  const attempt = await db.get(
+    "SELECT failed_count, first_failed_at, locked_until FROM login_attempts WHERE username_key = $1",
+    [usernameKey],
+  );
 
   if (!attempt) {
     return null;
@@ -159,27 +162,28 @@ function getLoginLock(usernameKey, now = Date.now()) {
   }
 
   if (attempt.locked_until || now - attempt.first_failed_at > LOGIN_WINDOW_MS) {
-    db.prepare("DELETE FROM login_attempts WHERE username_key = ?").run(usernameKey);
+    await db.run("DELETE FROM login_attempts WHERE username_key = $1", [usernameKey]);
     return null;
   }
 
   return null;
 }
 
-function recordFailedLogin(usernameKey, now = Date.now()) {
-  const attempt = db
-    .prepare("SELECT failed_count, first_failed_at FROM login_attempts WHERE username_key = ?")
-    .get(usernameKey);
+async function recordFailedLogin(usernameKey, now = Date.now()) {
+  const attempt = await db.get(
+    "SELECT failed_count, first_failed_at FROM login_attempts WHERE username_key = $1",
+    [usernameKey],
+  );
 
   if (!attempt || now - attempt.first_failed_at > LOGIN_WINDOW_MS) {
-    db.prepare(`
+    await db.run(`
       INSERT INTO login_attempts (username_key, failed_count, first_failed_at, locked_until)
-      VALUES (?, 1, ?, 0)
+      VALUES ($1, 1, $2, 0)
       ON CONFLICT(username_key) DO UPDATE SET
         failed_count = excluded.failed_count,
         first_failed_at = excluded.first_failed_at,
         locked_until = excluded.locked_until
-    `).run(usernameKey, now);
+    `, [usernameKey, now]);
     return;
   }
 
@@ -187,16 +191,27 @@ function recordFailedLogin(usernameKey, now = Date.now()) {
   const lockedUntil =
     failedCount >= LOGIN_MAX_FAILED_ATTEMPTS ? now + LOGIN_LOCKOUT_MS : 0;
 
-  db.prepare(`
+  await db.run(`
     UPDATE login_attempts
-    SET failed_count = ?,
-      locked_until = ?
-    WHERE username_key = ?
-  `).run(failedCount, lockedUntil, usernameKey);
+    SET failed_count = $1,
+      locked_until = $2
+    WHERE username_key = $3
+  `, [failedCount, lockedUntil, usernameKey]);
 }
 
-function clearFailedLogins(usernameKey) {
-  db.prepare("DELETE FROM login_attempts WHERE username_key = ?").run(usernameKey);
+async function clearFailedLogins(usernameKey) {
+  await db.run("DELETE FROM login_attempts WHERE username_key = $1", [usernameKey]);
+}
+
+async function clearUserSessions(userId) {
+  await db.run("DELETE FROM sessions WHERE user_id = $1", [userId]);
+}
+
+function serializeAdminUserPasswordUpdate(user) {
+  return {
+    id: user.id,
+    username: user.username,
+  };
 }
 
 function getSmtpTransporter() {
@@ -257,7 +272,7 @@ function registerAuthRoutes(app) {
   app.post("/api/login", async (req, res) => {
     const loginName = String(req.body.username || "").trim().toLowerCase();
     const password = String(req.body.password || "");
-    const lock = getLoginLock(loginName);
+    const lock = await getLoginLock(loginName);
 
     if (lock) {
       return res.status(429).json({
@@ -266,21 +281,22 @@ function registerAuthRoutes(app) {
       });
     }
 
-    const user = db
-      .prepare("SELECT id, username, password, email FROM users WHERE username_key = ?")
-      .get(loginName);
+    const user = await db.get(
+      "SELECT id, username, password, email, mfa_enabled FROM users WHERE username_key = $1",
+      [loginName],
+    );
 
     if (!user || !verifyPassword(password, user.password)) {
-      recordFailedLogin(loginName);
+      await recordFailedLogin(loginName);
       return res.status(401).json({
-        message: "Invalid username or password",
+        message: "Invalid username or password / 用户名或密码错误",
       });
     }
 
-    clearFailedLogins(loginName);
+    await clearFailedLogins(loginName);
 
-    if (!MFA_ENABLED) {
-      createSession(res, user);
+    if (!user.mfa_enabled) {
+      await createSession(res, user);
 
       return res.json({
         username: user.username,
@@ -292,7 +308,7 @@ function registerAuthRoutes(app) {
 
     if (!email) {
       return res.status(403).json({
-        message: "Email MFA is not configured for this account",
+        message: "Email MFA is not configured for this account / 该账户未配置邮箱验证",
       });
     }
 
@@ -316,7 +332,7 @@ function registerAuthRoutes(app) {
     });
   });
 
-  app.post("/api/login/mfa", (req, res) => {
+  app.post("/api/login/mfa", async (req, res) => {
     const token = String(req.body.mfaToken || "");
     const code = String(req.body.code || "").trim();
     const challenge = pendingMfa.get(token);
@@ -336,9 +352,10 @@ function registerAuthRoutes(app) {
       });
     }
 
-    const user = db
-      .prepare("SELECT id, username FROM users WHERE id = ? AND username = ?")
-      .get(challenge.userId, challenge.username);
+    const user = await db.get(
+      "SELECT id, username FROM users WHERE id = $1 AND username = $2",
+      [challenge.userId, challenge.username],
+    );
 
     pendingMfa.delete(token);
 
@@ -348,7 +365,7 @@ function registerAuthRoutes(app) {
       });
     }
 
-    createSession(res, user);
+    await createSession(res, user);
 
     return res.json({
       username: user.username,
@@ -356,12 +373,12 @@ function registerAuthRoutes(app) {
     });
   });
 
-  app.post("/api/logout", (req, res) => {
+  app.post("/api/logout", async (req, res) => {
     const cookies = parseCookies(req.headers.cookie);
     const sessionId = cookies[SESSION_COOKIE];
 
     if (sessionId) {
-      db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+      await db.run("DELETE FROM sessions WHERE id = $1", [sessionId]);
     }
 
     res.clearCookie(SESSION_COOKIE, {
@@ -375,16 +392,14 @@ function registerAuthRoutes(app) {
     });
   });
 
-  app.get("/api/admin/users", (req, res) => {
-    const session = requireAdmin(req, res);
+  app.get("/api/admin/users", async (req, res) => {
+    const session = await requireAdmin(req, res);
 
     if (!session) {
       return;
     }
 
-    const users = db
-      .prepare("SELECT id, username, email FROM users ORDER BY id")
-      .all()
+    const users = (await db.all("SELECT id, username, email, mfa_enabled FROM users ORDER BY id"))
       .map(serializeAdminUser);
 
     return res.json({
@@ -392,8 +407,8 @@ function registerAuthRoutes(app) {
     });
   });
 
-  app.patch("/api/admin/users/:userId/email", (req, res) => {
-    const session = requireAdmin(req, res);
+  app.patch("/api/admin/users/:userId/email", async (req, res) => {
+    const session = await requireAdmin(req, res);
 
     if (!session) {
       return;
@@ -414,9 +429,7 @@ function registerAuthRoutes(app) {
       });
     }
 
-    const user = db
-      .prepare("SELECT id, username FROM users WHERE id = ?")
-      .get(userId);
+    const user = await db.get("SELECT id, username FROM users WHERE id = $1", [userId]);
 
     if (!user) {
       return res.status(404).json({
@@ -424,12 +437,108 @@ function registerAuthRoutes(app) {
       });
     }
 
-    db.prepare("UPDATE users SET email = ? WHERE id = ?").run(email, userId);
+    await db.run("UPDATE users SET email = $1 WHERE id = $2", [email, userId]);
     console.log(`${session.username} updated email for ${user.username}`);
 
-    const updatedUser = db
-      .prepare("SELECT id, username, email FROM users WHERE id = ?")
-      .get(userId);
+    const updatedUser = await db.get(
+      "SELECT id, username, email, mfa_enabled FROM users WHERE id = $1",
+      [userId],
+    );
+
+    return res.json({
+      user: serializeAdminUser(updatedUser),
+    });
+  });
+
+  app.patch("/api/admin/users/:userId/password", async (req, res) => {
+    const session = await requireAdmin(req, res);
+
+    if (!session) {
+      return;
+    }
+
+    const userId = Number(req.params.userId);
+    const password = String(req.body.password || "");
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({
+        message: "Invalid user id",
+      });
+    }
+
+    if (password.length < 12) {
+      return res.status(400).json({
+        message: "Password must be at least 12 characters. / 密码至少需要 12 位。",
+      });
+    }
+
+    const user = await db.get(
+      "SELECT id, username, username_key FROM users WHERE id = $1",
+      [userId],
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found / 用户不存在",
+      });
+    }
+
+    await db.run("UPDATE users SET password = $1 WHERE id = $2", [
+      hashPassword(password),
+      userId,
+    ]);
+    await clearFailedLogins(user.username_key);
+    await clearUserSessions(userId);
+    console.log(`${session.username} updated password for ${user.username}`);
+
+    return res.json({
+      user: serializeAdminUserPasswordUpdate(user),
+    });
+  });
+
+  app.patch("/api/admin/users/:userId/mfa", async (req, res) => {
+    const session = await requireAdmin(req, res);
+
+    if (!session) {
+      return;
+    }
+
+    const userId = Number(req.params.userId);
+    const mfaEnabled = Boolean(req.body.mfaEnabled);
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({
+        message: "Invalid user id",
+      });
+    }
+
+    const user = await db.get(
+      "SELECT id, username, email FROM users WHERE id = $1",
+      [userId],
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found / 用户不存在",
+      });
+    }
+
+    if (mfaEnabled && !String(user.email || "").trim()) {
+      return res.status(400).json({
+        message: "Set an email before enabling MFA. / 启用邮箱验证前请先设置邮箱。",
+      });
+    }
+
+    await db.run("UPDATE users SET mfa_enabled = $1 WHERE id = $2", [
+      mfaEnabled,
+      userId,
+    ]);
+    console.log(`${session.username} ${mfaEnabled ? "enabled" : "disabled"} MFA for ${user.username}`);
+
+    const updatedUser = await db.get(
+      "SELECT id, username, email, mfa_enabled FROM users WHERE id = $1",
+      [userId],
+    );
 
     return res.json({
       user: serializeAdminUser(updatedUser),
