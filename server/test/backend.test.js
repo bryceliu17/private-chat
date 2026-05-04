@@ -14,7 +14,6 @@ if (!process.env.TEST_DATABASE_URL) {
 const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), "private-chat-test-"));
 
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
-process.env.PRIVATE_CHAT_DATA_DIR = path.join(testRoot, "data");
 process.env.PRIVATE_CHAT_UPLOAD_DIR = path.join(testRoot, "uploads");
 process.env.MESSAGE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("base64");
 process.env.PRIVILEGED_USERNAME = "admin-test";

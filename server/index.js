@@ -2,7 +2,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
-const { PORT, UPLOAD_DIR, isAllowedClientOrigin } = require("./config");
+const { PORT, isAllowedClientOrigin } = require("./config");
 const {
   getSocketSession,
   registerAuthRoutes,
@@ -31,7 +31,6 @@ const app = express();
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "15mb" }));
-app.use("/uploads", express.static(UPLOAD_DIR));
 
 const server = http.createServer(app);
 const io = new Server(server, {

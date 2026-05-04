@@ -11,14 +11,19 @@ fs.mkdirSync(PHOTO_UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(AUDIO_UPLOAD_DIR, { recursive: true });
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("Missing DATABASE_URL. Add your Supabase PostgreSQL connection string to server/.env.");
+  throw new Error("Missing DATABASE_URL. Add your PostgreSQL connection string to server/.env.");
 }
+
+const databaseUrl = new URL(process.env.DATABASE_URL);
+const isLocalDatabase = ["localhost", "127.0.0.1", "::1"].includes(databaseUrl.hostname);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: isLocalDatabase
+    ? false
+    : {
+        rejectUnauthorized: false,
+      },
 });
 
 async function query(sql, params = []) {

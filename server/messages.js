@@ -1,6 +1,4 @@
 const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
 const {
   MAX_AUDIO_SIZE,
   MAX_PHOTO_SIZE,
@@ -10,12 +8,8 @@ const { decryptText, encryptText } = require("./encryption");
 const {
   deleteLocalUpload,
   deleteObject,
-  getBucketForKind,
   getClientFileUrl,
-  getLocalUploadInfo,
-  getStoragePathForUpload,
-  storageEnabled,
-  uploadObject,
+  saveLocalEncryptedUpload,
 } = require("./storage");
 
 async function getRoom(roomId) {
@@ -163,33 +157,12 @@ async function deleteUploadedFilesForMessages(messages) {
 }
 
 async function saveUpload({ kind, roomId, filename, buffer, contentType }) {
-  if (storageEnabled) {
-    const bucket = getBucketForKind(kind);
-    const storagePath = getStoragePathForUpload(kind, roomId, filename);
-    const storageRef = await uploadObject({
-      bucket,
-      storagePath,
-      buffer,
-      contentType,
-    });
-
-    return {
-      dbUrl: storageRef,
-      clientUrl: getClientFileUrl(storageRef),
-      cleanup: () => deleteObject(storageRef),
-    };
-  }
-
-  const { uploadDir, clientUrl } = getLocalUploadInfo(kind, filename);
-  const uploadPath = path.join(uploadDir, filename);
-
-  fs.writeFileSync(uploadPath, buffer);
-
-  return {
-    dbUrl: clientUrl,
-    clientUrl,
-    cleanup: () => fs.rmSync(uploadPath, { force: true }),
-  };
+  return saveLocalEncryptedUpload({
+    kind,
+    filename,
+    buffer,
+    contentType,
+  });
 }
 
 function registerRoomRoutes(app, {
