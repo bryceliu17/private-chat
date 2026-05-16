@@ -161,6 +161,47 @@ async function saveUpload({ kind, roomId, filename, buffer, contentType }) {
   });
 }
 
+function parseAudioDataUrl(audioData) {
+  const match = String(audioData || "").match(
+    /^data:([^;,]+)((?:;[^,]*)*);base64,([\s\S]+)$/i,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const contentType = match[1].toLowerCase();
+  const subtype = contentType.split("/")[1] || "";
+  const isSupportedAudio =
+    contentType.startsWith("audio/") ||
+    contentType === "video/mp4" ||
+    contentType === "application/octet-stream";
+
+  if (!isSupportedAudio || !subtype) {
+    return null;
+  }
+
+  const extensionBySubtype = {
+    aac: "aac",
+    "x-aac": "aac",
+    m4a: "m4a",
+    "x-m4a": "m4a",
+    mp4: "mp4",
+    mpeg: "mp3",
+    mp3: "mp3",
+    ogg: "ogg",
+    wav: "wav",
+    webm: "webm",
+    "octet-stream": "audio",
+  };
+
+  return {
+    buffer: Buffer.from(match[3].replace(/\s/g, ""), "base64"),
+    contentType,
+    extension: extensionBySubtype[subtype] || subtype.replace(/[^a-z0-9]+/g, "-") || "audio",
+  };
+}
+
 function registerRoomRoutes(app, {
   getSocketSession,
   io,
@@ -278,18 +319,15 @@ function registerRoomRoutes(app, {
 
     const audioData = String(req.body.audioData || "");
     const originalName = String(req.body.filename || "voice-message").trim() || "voice-message";
-    const match = audioData.match(
-      /^data:audio\/(webm|mp4|mpeg|mp3|wav|ogg)(?:;codecs=[^;]+)?;base64,([A-Za-z0-9+/=]+)$/i,
-    );
+    const parsedAudio = parseAudioDataUrl(audioData);
 
-    if (!match) {
+    if (!parsedAudio) {
       return res.status(400).json({
         message: "Please record or upload a supported audio message.",
       });
     }
 
-    const extension = match[1].toLowerCase() === "mpeg" ? "mp3" : match[1].toLowerCase();
-    const buffer = Buffer.from(match[2], "base64");
+    const { buffer, contentType, extension } = parsedAudio;
 
     if (!buffer.length) {
       return res.status(400).json({
@@ -305,7 +343,7 @@ function registerRoomRoutes(app, {
       roomId,
       filename,
       buffer,
-      contentType: match[0].slice(5, match[0].indexOf(";base64,")),
+      contentType,
     });
 
     const message = {
