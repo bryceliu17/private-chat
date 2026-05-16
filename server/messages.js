@@ -1,8 +1,4 @@
 const crypto = require("crypto");
-const {
-  MAX_AUDIO_SIZE,
-  MAX_PHOTO_SIZE,
-} = require("./config");
 const { db } = require("./db");
 const { decryptText, encryptText } = require("./encryption");
 const {
@@ -220,9 +216,9 @@ function registerRoomRoutes(app, {
       match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
     const buffer = Buffer.from(match[2], "base64");
 
-    if (!buffer.length || buffer.length > MAX_PHOTO_SIZE) {
+    if (!buffer.length) {
       return res.status(400).json({
-        message: "Photo must be smaller than 5 MB.",
+        message: "Photo data is empty.",
       });
     }
 
@@ -295,9 +291,9 @@ function registerRoomRoutes(app, {
     const extension = match[1].toLowerCase() === "mpeg" ? "mp3" : match[1].toLowerCase();
     const buffer = Buffer.from(match[2], "base64");
 
-    if (!buffer.length || buffer.length > MAX_AUDIO_SIZE) {
+    if (!buffer.length) {
       return res.status(400).json({
-        message: "Audio message must be smaller than 10 MB.",
+        message: "Audio message data is empty.",
       });
     }
 

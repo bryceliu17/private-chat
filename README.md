@@ -129,6 +129,7 @@ Recommended production `.env` values:
 ```text
 PUBLIC_ORIGIN=https://your-domain.example
 SESSION_COOKIE_SECURE=true
+REQUEST_BODY_LIMIT=200mb
 MESSAGE_ENCRYPTION_KEY=your-existing-key
 ```
 

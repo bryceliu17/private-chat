@@ -44,12 +44,15 @@ function isAllowedClientOrigin(origin) {
       return true;
     }
 
-    if (
-      process.env.PUBLIC_ORIGIN &&
-      origin === process.env.PUBLIC_ORIGIN
-    ) {
+    const publicOrigins = (process.env.PUBLIC_ORIGINS || process.env.PUBLIC_ORIGIN || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (publicOrigins.includes(origin)) {
       return true;
     }
+
 
     return false;
   } catch {
@@ -61,8 +64,7 @@ module.exports = {
   ADMIN_USERNAME:
     process.env.PRIVILEGED_USERNAME || process.env.ACCOUNT0_USERNAME || "admin",
   AUDIO_UPLOAD_DIR,
-  MAX_AUDIO_SIZE: 10 * 1024 * 1024,
-  MAX_PHOTO_SIZE: 5 * 1024 * 1024,
+  REQUEST_BODY_LIMIT: process.env.REQUEST_BODY_LIMIT || "200mb",
   LOGIN_LOCKOUT_MS: 1000 * 60 * 30,
   LOGIN_MAX_FAILED_ATTEMPTS: 5,
   LOGIN_WINDOW_MS: 1000 * 60 * 10,

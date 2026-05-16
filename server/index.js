@@ -2,7 +2,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
-const { PORT, isAllowedClientOrigin } = require("./config");
+const { PORT, REQUEST_BODY_LIMIT, isAllowedClientOrigin } = require("./config");
 const {
   getSocketSession,
   registerAuthRoutes,
@@ -30,7 +30,7 @@ const corsOptions = {
 const app = express();
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
