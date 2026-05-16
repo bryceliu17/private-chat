@@ -32,3 +32,31 @@ deploy/nginx/certs/
 *.key
 *.crt
 backups/
+
+# PM2 / process dumps
+.pm2/
+ecosystem.config.local.js
+
+# temporary sync/patch files
+*.patch
+*.diff
+*.orig
+*.rej
+
+# archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# local databases
+*.sqlite
+*.sqlite3
+*.db
+
+# OS/editor temp
+*.swp
+*.swo
+*~
