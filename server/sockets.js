@@ -45,13 +45,43 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
     });
   }
 
-  function endVoiceCall(call, reason = "ended", endedBy = null) {
+  function formatCallDuration(durationMs) {
+    const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  async function recordCompletedVoiceCall(call) {
+    if (!call.startedAt || call.recordedAt) {
+      return;
+    }
+
+    call.recordedAt = Date.now();
+    const callLabel = call.callType === "video" ? "Video call" : "Voice call";
+
+    const message = await createTextMessage(call.roomId, {
+      userId: call.callerUserId,
+      username: call.caller,
+    }, `${callLabel}: ${call.caller} and ${call.callee}, duration ${formatCallDuration(call.recordedAt - call.startedAt)}.`, {
+      createdAt: call.recordedAt,
+      id: `${call.recordedAt}-${call.id}-call`,
+    });
+
+    io.to(call.roomId).emit("receive_message", message);
+    await markActiveRoomUsersRead(io, getSocketSession, call.roomId, message.createdAt);
+    await presence.emitRoomsPresence();
+  }
+
+  async function endVoiceCall(call, reason = "ended", endedBy = null) {
     if (!call || roomCalls.get(call.id) !== call) {
       return;
     }
 
     roomCalls.delete(call.id);
     clearSocketCallData(call);
+    await recordCompletedVoiceCall(call);
 
     [call.callerSocketId, call.calleeSocketId].forEach((socketId) => {
       if (socketId !== endedBy) {
@@ -123,7 +153,7 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         return;
       }
 
-      endVoiceCall(getSocketCall(socket), "left_room", socket.id);
+      await endVoiceCall(getSocketCall(socket), "left_room", socket.id);
 
       if (session.isAdmin) {
         socket.leave(cleanRoomId);
@@ -136,9 +166,10 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       await presence.removeSocketPresence(socket, { announce: true });
     });
 
-    socket.on("voice_call_request", async ({ roomId, to }) => {
+    socket.on("voice_call_request", async ({ roomId, to, callType }) => {
       const cleanRoomId = String(roomId || "").trim();
       const targetUsername = String(to || "").trim();
+      const cleanCallType = callType === "video" ? "video" : "audio";
       const session = await getSocketSession(socket);
 
       if (
@@ -183,9 +214,11 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         id: `${Date.now()}-${socket.id}`,
         roomId: cleanRoomId,
         caller: session.username,
+        callerUserId: session.userId,
         callerSocketId: socket.id,
         callee: targetUsername,
         calleeSocketId: targetSocket.id,
+        callType: cleanCallType,
         status: "ringing",
       };
 
@@ -195,10 +228,12 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
 
       socket.emit("voice_call_ringing", {
         callId: call.id,
+        callType: call.callType,
         to: targetUsername,
       });
       targetSocket.emit("voice_call_incoming", {
         callId: call.id,
+        callType: call.callType,
         from: session.username,
       });
     });
@@ -212,14 +247,19 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       }
 
       call.status = "active";
+      call.startedAt = call.startedAt || Date.now();
 
       io.to(call.callerSocketId).emit("voice_call_accepted", {
         callId: call.id,
         by: session.username,
+        callType: call.callType,
+        startedAt: call.startedAt,
       });
       socket.emit("voice_call_accepted", {
         callId: call.id,
         by: session.username,
+        callType: call.callType,
+        startedAt: call.startedAt,
       });
     });
 
@@ -235,7 +275,7 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         callId: call.id,
         by: session.username,
       });
-      endVoiceCall(call, "rejected", socket.id);
+      await endVoiceCall(call, "rejected", socket.id);
     });
 
     socket.on("voice_call_signal", ({ callId, signal }) => {
@@ -262,10 +302,10 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       });
     });
 
-    socket.on("voice_call_hangup", ({ callId }) => {
+    socket.on("voice_call_hangup", async ({ callId }) => {
       const call = roomCalls.get(String(callId || "")) || getSocketCall(socket);
 
-      endVoiceCall(call, "hangup", socket.id);
+      await endVoiceCall(call, "hangup", socket.id);
     });
 
     socket.on("send_message", async ({ roomId, text }) => {
@@ -291,7 +331,7 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
     });
 
     socket.on("disconnect", async () => {
-      endVoiceCall(getSocketCall(socket), "disconnected", socket.id);
+      await endVoiceCall(getSocketCall(socket), "disconnected", socket.id);
 
       if (socket.data.isAdmin && socket.data.roomId) {
         socket.leave(socket.data.roomId);

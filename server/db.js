@@ -2,13 +2,17 @@ const fs = require("fs");
 const { Pool } = require("pg");
 const {
   AUDIO_UPLOAD_DIR,
+  FILE_UPLOAD_DIR,
   PHOTO_UPLOAD_DIR,
   UPLOAD_DIR,
+  VIDEO_UPLOAD_DIR,
 } = require("./config");
 
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(PHOTO_UPLOAD_DIR, { recursive: true });
 fs.mkdirSync(AUDIO_UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(FILE_UPLOAD_DIR, { recursive: true });
+fs.mkdirSync(VIDEO_UPLOAD_DIR, { recursive: true });
 
 if (!process.env.DATABASE_URL) {
   throw new Error("Missing DATABASE_URL. Add your PostgreSQL connection string to server/.env.");

@@ -515,6 +515,71 @@ body {
   color: #713f12;
 }
 
+.call-choice-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(17 24 39 / 45%);
+}
+
+.call-choice-modal {
+  display: grid;
+  gap: 12px;
+  width: min(340px, 100%);
+  padding: 18px;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 24%);
+}
+
+.call-choice-modal strong {
+  font-size: 18px;
+}
+
+.call-choice-modal > span {
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.call-choice-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.call-choice-actions button,
+.call-choice-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #111827;
+  font-weight: 700;
+}
+
+.call-choice-actions svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.call-choice-cancel {
+  background: #fff;
+  color: #4b5563;
+}
+
 .voice-call-panel > div:first-child {
   display: grid;
   gap: 2px;
@@ -528,9 +593,42 @@ body {
   font-size: 12px;
 }
 
+.voice-call-timer {
+  font-weight: 700;
+  color: #92400e;
+}
+
 .voice-call-actions {
   display: flex;
   gap: 8px;
+}
+
+.video-call-stage {
+  position: relative;
+  width: min(360px, 42vw);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #111827;
+}
+
+.remote-video,
+.local-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.local-video {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 30%;
+  height: 34%;
+  border: 2px solid #fff;
+  border-radius: 6px;
+  background: #1f2937;
 }
 
 .voice-call-actions button {
@@ -739,6 +837,55 @@ body {
   white-space: nowrap;
 }
 
+.chat-video-message {
+  display: grid;
+  gap: 6px;
+  max-width: min(360px, 72vw);
+}
+
+.chat-video-message video {
+  width: 100%;
+  max-height: 320px;
+  border-radius: 8px;
+  background: #111827;
+}
+
+.chat-video-message span {
+  max-width: 320px;
+  overflow: hidden;
+  color: #555;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(320px, 70vw);
+  color: #1f2937;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.chat-file-link svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.chat-file-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .image-upload-error {
   margin: 0;
   padding: 8px 12px;
@@ -757,6 +904,41 @@ body {
   padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid #eee;
   background: #fff;
+}
+
+.upload-menu {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 12px;
+  z-index: 5;
+  display: grid;
+  gap: 4px;
+  min-width: 132px;
+  padding: 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgb(15 23 42 / 18%);
+}
+
+.input-bar .upload-menu button {
+  justify-content: flex-start;
+  width: 100%;
+  height: 38px;
+  gap: 8px;
+  padding: 0 10px;
+  background: #fff;
+  color: #111827;
+  font-weight: 700;
+}
+
+.input-bar .upload-menu button:hover {
+  background: #f3f4f6;
+}
+
+.input-bar .upload-menu svg {
+  width: 18px;
+  height: 18px;
 }
 
 .image-file-input {
@@ -812,7 +994,7 @@ body {
   opacity: 0.7;
 }
 
-.input-bar .image-upload-button {
+.input-bar .upload-menu-button {
   background: #4b5563;
 }
 
@@ -838,6 +1020,10 @@ body {
   .voice-call-panel {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .video-call-stage {
+    width: 100%;
   }
 
   .room-panel-header,

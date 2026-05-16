@@ -11,6 +11,8 @@ const LAN_CLIENT_HOST_PATTERN =
 const UPLOAD_DIR = process.env.PRIVATE_CHAT_UPLOAD_DIR || path.join(__dirname, "uploads");
 const PHOTO_UPLOAD_DIR = path.join(UPLOAD_DIR, "photos");
 const AUDIO_UPLOAD_DIR = path.join(UPLOAD_DIR, "audio");
+const FILE_UPLOAD_DIR = path.join(UPLOAD_DIR, "files");
+const VIDEO_UPLOAD_DIR = path.join(UPLOAD_DIR, "videos");
 const SUPABASE_URL =
   process.env.SUPABASE_URL ||
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -69,6 +71,7 @@ module.exports = {
   LOGIN_MAX_FAILED_ATTEMPTS: 5,
   LOGIN_WINDOW_MS: 1000 * 60 * 10,
   FILE_ENCRYPTION_KEY: process.env.FILE_ENCRYPTION_KEY || "",
+  FILE_UPLOAD_DIR,
   MESSAGE_ENCRYPTION_KEY: process.env.MESSAGE_ENCRYPTION_KEY || "",
   MFA_CODE_MAX_AGE_MS: 1000 * 60 * 10,
   MFA_ENABLED: false,
@@ -83,5 +86,6 @@ module.exports = {
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_URL,
   UPLOAD_DIR,
+  VIDEO_UPLOAD_DIR,
   isAllowedClientOrigin,
 };

@@ -37,6 +37,24 @@ function rowToMessage(row) {
     };
   }
 
+  if (row.type === "file") {
+    return {
+      ...message,
+      type: "file",
+      filename: row.filename,
+      fileUrl: getClientFileUrl(row.file_url),
+    };
+  }
+
+  if (row.type === "video") {
+    return {
+      ...message,
+      type: "video",
+      filename: row.filename,
+      videoUrl: getClientFileUrl(row.video_url),
+    };
+  }
+
   return {
     ...message,
     type: "text",
@@ -133,7 +151,7 @@ async function markActiveRoomUsersRead(io, getSocketSession, roomId, readAt = Da
 
 async function deleteUploadedFilesForMessages(messages) {
   for (const message of messages) {
-    for (const url of [message.image_url, message.audio_url]) {
+    for (const url of [message.image_url, message.audio_url, message.file_url, message.video_url]) {
       if (!url) {
         continue;
       }
@@ -159,6 +177,50 @@ async function saveUpload({ kind, roomId, filename, buffer, contentType }) {
     buffer,
     contentType,
   });
+}
+
+let uploadMessageSchemaPromise = null;
+
+function ensureUploadMessageSchema() {
+  if (!uploadMessageSchemaPromise) {
+    uploadMessageSchemaPromise = (async () => {
+      await db.run("ALTER TABLE messages ADD COLUMN IF NOT EXISTS file_url text");
+      await db.run("ALTER TABLE messages ADD COLUMN IF NOT EXISTS video_url text");
+      await db.run("ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_type_check");
+      await db.run(`
+        ALTER TABLE messages
+        ADD CONSTRAINT messages_type_check
+        CHECK (type in ('text', 'image', 'audio', 'file', 'video'))
+      `);
+    })();
+  }
+
+  return uploadMessageSchemaPromise;
+}
+
+function getSafeExtension(filename, fallback = "bin") {
+  const extension = String(filename || "").split(".").pop();
+
+  if (!extension || extension === filename) {
+    return fallback;
+  }
+
+  return extension.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 16) || fallback;
+}
+
+function parseFileDataUrl(fileData) {
+  const match = String(fileData || "").match(
+    /^data:([^;,]+)((?:;[^,]*)*);base64,([\s\S]+)$/i,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    buffer: Buffer.from(match[3].replace(/\s/g, ""), "base64"),
+    contentType: match[1].toLowerCase(),
+  };
 }
 
 function parseAudioDataUrl(audioData) {
@@ -374,6 +436,150 @@ function registerRoomRoutes(app, {
     });
   });
 
+  app.post("/api/rooms/:roomId/files", async (req, res) => {
+    const session = await requireChatUser(req, res);
+
+    if (!session) {
+      return;
+    }
+
+    const roomId = String(req.params.roomId || "").trim();
+
+    if (!(await getRoom(roomId))) {
+      return res.status(404).json({
+        message: "Room not found",
+      });
+    }
+
+    const originalName = String(req.body.filename || "file").trim() || "file";
+    const parsedFile = parseFileDataUrl(req.body.fileData);
+
+    if (!parsedFile) {
+      return res.status(400).json({
+        message: "Please upload a valid file.",
+      });
+    }
+
+    const { buffer, contentType } = parsedFile;
+
+    if (!buffer.length) {
+      return res.status(400).json({
+        message: "File data is empty.",
+      });
+    }
+
+    const id = crypto.randomUUID();
+    const filename = `${id}.${getSafeExtension(originalName)}`;
+    const createdAt = Date.now();
+    await ensureUploadMessageSchema();
+    const upload = await saveUpload({
+      kind: "file",
+      roomId,
+      filename,
+      buffer,
+      contentType,
+    });
+
+    const message = {
+      id: `${Date.now()}-${id}`,
+      type: "file",
+      filename: originalName,
+      username: session.username,
+      fileUrl: upload.clientUrl,
+      createdAt,
+    };
+
+    try {
+      await db.run(`
+        INSERT INTO messages (id, room_id, user_id, type, file_url, filename, created_at)
+        VALUES ($1, $2, $3, 'file', $4, $5, $6)
+      `, [message.id, roomId, session.userId, upload.dbUrl, originalName, createdAt]);
+    } catch (error) {
+      await upload.cleanup();
+      throw error;
+    }
+
+    io.to(roomId).emit("receive_message", message);
+    await markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
+    await presence.emitRoomsPresence();
+
+    return res.status(201).json({
+      message,
+    });
+  });
+
+  app.post("/api/rooms/:roomId/videos", async (req, res) => {
+    const session = await requireChatUser(req, res);
+
+    if (!session) {
+      return;
+    }
+
+    const roomId = String(req.params.roomId || "").trim();
+
+    if (!(await getRoom(roomId))) {
+      return res.status(404).json({
+        message: "Room not found",
+      });
+    }
+
+    const originalName = String(req.body.filename || "video").trim() || "video";
+    const parsedVideo = parseFileDataUrl(req.body.videoData);
+
+    if (!parsedVideo || !parsedVideo.contentType.startsWith("video/")) {
+      return res.status(400).json({
+        message: "Please upload a valid video.",
+      });
+    }
+
+    const { buffer, contentType } = parsedVideo;
+
+    if (!buffer.length) {
+      return res.status(400).json({
+        message: "Video data is empty.",
+      });
+    }
+
+    const id = crypto.randomUUID();
+    const filename = `${id}.${getSafeExtension(originalName, "mp4")}`;
+    const createdAt = Date.now();
+    await ensureUploadMessageSchema();
+    const upload = await saveUpload({
+      kind: "video",
+      roomId,
+      filename,
+      buffer,
+      contentType,
+    });
+
+    const message = {
+      id: `${Date.now()}-${id}`,
+      type: "video",
+      filename: originalName,
+      username: session.username,
+      videoUrl: upload.clientUrl,
+      createdAt,
+    };
+
+    try {
+      await db.run(`
+        INSERT INTO messages (id, room_id, user_id, type, video_url, filename, created_at)
+        VALUES ($1, $2, $3, 'video', $4, $5, $6)
+      `, [message.id, roomId, session.userId, upload.dbUrl, originalName, createdAt]);
+    } catch (error) {
+      await upload.cleanup();
+      throw error;
+    }
+
+    io.to(roomId).emit("receive_message", message);
+    await markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
+    await presence.emitRoomsPresence();
+
+    return res.status(201).json({
+      message,
+    });
+  });
+
   app.delete("/api/rooms/:roomId/messages", async (req, res) => {
     const session = await requireAdmin(req, res);
 
@@ -389,8 +595,9 @@ function registerRoomRoutes(app, {
       });
     }
 
+    await ensureUploadMessageSchema();
     const messages = await db.all(
-      "SELECT id, image_url, audio_url FROM messages WHERE room_id = $1",
+      "SELECT id, image_url, audio_url, file_url, video_url FROM messages WHERE room_id = $1",
       [roomId],
     );
 
@@ -418,8 +625,9 @@ function registerRoomRoutes(app, {
     }
 
     const messageId = String(req.params.messageId || "").trim();
+    await ensureUploadMessageSchema();
     const message = await db.get(
-      "SELECT id, room_id, image_url, audio_url FROM messages WHERE id = $1",
+      "SELECT id, room_id, image_url, audio_url, file_url, video_url FROM messages WHERE id = $1",
       [messageId],
     );
 

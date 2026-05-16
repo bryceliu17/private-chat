@@ -88,6 +88,26 @@ function IconPhoto() {
   );
 }
 
+function IconPlus() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function IconFile() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
+    </svg>
+  );
+}
+
 function IconMic() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -124,6 +144,29 @@ function IconPhone() {
   );
 }
 
+function IconVideo() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M4 6h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
+      <path d="m17 10 5-3v10l-5-3" />
+    </svg>
+  );
+}
+
+function IconFilm() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M4 5h16v14H4z" />
+      <path d="M8 5v14" />
+      <path d="M16 5v14" />
+      <path d="M4 9h4" />
+      <path d="M16 9h4" />
+      <path d="M4 15h4" />
+      <path d="M16 15h4" />
+    </svg>
+  );
+}
+
 function App() {
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
@@ -143,13 +186,20 @@ function App() {
   const [deletingRoomId, setDeletingRoomId] = useState("");
   const [imageUploadError, setImageUploadError] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const [voiceCall, setVoiceCall] = useState({
     callId: "",
+    callType: "audio",
     peer: "",
+    startedAt: 0,
     status: "idle",
   });
+  const [callChoiceUser, setCallChoiceUser] = useState("");
+  const [voiceCallElapsedSeconds, setVoiceCallElapsedSeconds] = useState(0);
   const [voiceCallError, setVoiceCallError] = useState("");
 
   const [rooms, setRooms] = useState([]);
@@ -160,6 +210,8 @@ function App() {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const imageInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const videoInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const messageInputRef = useRef(null);
@@ -167,6 +219,8 @@ function App() {
   const localVoiceStreamRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const remoteAudioRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
   const voiceCallRef = useRef(voiceCall);
   const ringtoneAudioContextRef = useRef(null);
   const ringtoneGainRef = useRef(null);
@@ -386,6 +440,10 @@ function App() {
   function stopLocalVoiceStream() {
     localVoiceStreamRef.current?.getTracks().forEach((track) => track.stop());
     localVoiceStreamRef.current = null;
+
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
   }
 
   function closePeerConnection() {
@@ -395,6 +453,10 @@ function App() {
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
     }
+
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
   }
 
   function resetVoiceCall() {
@@ -402,12 +464,24 @@ function App() {
     stopLocalVoiceStream();
     setVoiceCall({
       callId: "",
+      callType: "audio",
       peer: "",
+      startedAt: 0,
       status: "idle",
     });
+    setCallChoiceUser("");
+    setVoiceCallElapsedSeconds(0);
   }
 
-  async function getLocalVoiceStream() {
+  function formatCallDuration(totalSeconds) {
+    const safeSeconds = Math.max(0, totalSeconds);
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  async function getLocalVoiceStream(callType = "audio") {
     if (localVoiceStreamRef.current) {
       return localVoiceStreamRef.current;
     }
@@ -418,14 +492,21 @@ function App() {
 
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
+      video: callType === "video",
     });
 
     localVoiceStreamRef.current = stream;
+
+    if (localVideoRef.current && callType === "video") {
+      localVideoRef.current.srcObject = stream;
+      localVideoRef.current.play().catch(() => {});
+    }
+
     return stream;
   }
 
-  async function createPeerConnection(callId, { shouldCreateOffer = false } = {}) {
-    const stream = await getLocalVoiceStream();
+  async function createPeerConnection(callId, { callType = "audio", shouldCreateOffer = false } = {}) {
+    const stream = await getLocalVoiceStream(callType);
     const peerConnection = new RTCPeerConnection({
       iceServers: [
         {
@@ -441,6 +522,12 @@ function App() {
     });
 
     peerConnection.ontrack = (event) => {
+      if (remoteVideoRef.current && callType === "video") {
+        remoteVideoRef.current.srcObject = event.streams[0];
+        remoteVideoRef.current.play().catch(() => {});
+        return;
+      }
+
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = event.streams[0];
         remoteAudioRef.current.play().catch(() => {});
@@ -481,9 +568,12 @@ function App() {
   async function handleVoiceSignal({ callId, signal }) {
     try {
       let peerConnection = peerConnectionRef.current;
+      const currentCall = voiceCallRef.current;
 
       if (!peerConnection) {
-        peerConnection = await createPeerConnection(callId);
+        peerConnection = await createPeerConnection(callId, {
+          callType: currentCall.callType,
+        });
       }
 
       if (signal.description) {
@@ -500,6 +590,8 @@ function App() {
           });
           setVoiceCall((current) => ({
             ...current,
+            callType: current.callType || "audio",
+            startedAt: current.startedAt || Date.now(),
             status: "active",
           }));
         }
@@ -580,25 +672,29 @@ function App() {
       );
     });
 
-    socket.on("voice_call_incoming", ({ callId, from }) => {
+    socket.on("voice_call_incoming", ({ callId, callType = "audio", from }) => {
       setVoiceCallError("");
       setVoiceCall({
         callId,
+        callType,
         peer: from,
+        startedAt: 0,
         status: "incoming",
       });
     });
 
-    socket.on("voice_call_ringing", ({ callId, to }) => {
+    socket.on("voice_call_ringing", ({ callId, callType = "audio", to }) => {
       setVoiceCallError("");
       setVoiceCall({
         callId,
+        callType,
         peer: to,
+        startedAt: 0,
         status: "ringing",
       });
     });
 
-    socket.on("voice_call_accepted", async ({ callId }) => {
+    socket.on("voice_call_accepted", async ({ callId, callType = "audio", startedAt }) => {
       const currentCall = voiceCallRef.current;
 
       if (currentCall.callId !== callId) {
@@ -608,17 +704,22 @@ function App() {
       try {
         setVoiceCall((current) => ({
           ...current,
+          callType,
+          startedAt: startedAt || current.startedAt || Date.now(),
           status: "connecting",
         }));
 
         if (!peerConnectionRef.current) {
           await createPeerConnection(callId, {
+            callType,
             shouldCreateOffer: currentCall.status === "ringing",
           });
         }
 
         setVoiceCall((current) => ({
           ...current,
+          callType,
+          startedAt: startedAt || current.startedAt || Date.now(),
           status: "active",
         }));
       } catch (error) {
@@ -665,6 +766,22 @@ function App() {
       socket.off("voice_call_signal");
     };
   }, []);
+
+  useEffect(() => {
+    if (!voiceCall.startedAt || !["connecting", "active"].includes(voiceCall.status)) {
+      setVoiceCallElapsedSeconds(0);
+      return undefined;
+    }
+
+    const updateElapsed = () => {
+      setVoiceCallElapsedSeconds(Math.max(0, Math.floor((Date.now() - voiceCall.startedAt) / 1000)));
+    };
+
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [voiceCall.startedAt, voiceCall.status]);
 
   useEffect(() => {
     messageListRef.current?.scrollTo({
@@ -812,6 +929,7 @@ function App() {
 
     setRoomId(targetRoomId);
     setJoined(true);
+    setCallChoiceUser("");
   };
 
   const leaveRoom = () => {
@@ -831,16 +949,28 @@ function App() {
     setMessage("");
     setMessages([]);
     setImageUploadError("");
+    setCallChoiceUser("");
   };
 
-  const startVoiceCall = (targetUsername) => {
+  const openCallChoice = (targetUsername) => {
     if (voiceCallRef.current.status !== "idle") {
       setVoiceCallError("You are already in a voice call. / 你已经在通话中。");
       return;
     }
 
+    setCallChoiceUser(targetUsername);
+  };
+
+  const startVoiceCall = (targetUsername, callType = "audio") => {
+    if (voiceCallRef.current.status !== "idle") {
+      setVoiceCallError("You are already in a voice call.");
+      return;
+    }
+
     setVoiceCallError("");
+    setCallChoiceUser("");
     socket.emit("voice_call_request", {
+      callType,
       roomId,
       to: targetUsername,
     });
@@ -855,7 +985,9 @@ function App() {
 
     try {
       setVoiceCallError("");
-      await createPeerConnection(currentCall.callId);
+      await createPeerConnection(currentCall.callId, {
+        callType: currentCall.callType,
+      });
       setVoiceCall((current) => ({
         ...current,
         status: "connecting",
@@ -1187,6 +1319,15 @@ function App() {
       reader.readAsDataURL(blob);
     });
 
+  const readFileAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Cannot read file"));
+      reader.readAsDataURL(file);
+    });
+
   const uploadImageMessage = async (file) => {
     if (!file) {
       return;
@@ -1215,6 +1356,7 @@ function App() {
         setImageUploadError(data.message || "Image upload failed.");
         return;
       }
+      setIsUploadMenuOpen(false);
     } catch {
       setImageUploadError("Cannot upload the image.");
     } finally {
@@ -1222,6 +1364,88 @@ function App() {
 
       if (imageInputRef.current) {
         imageInputRef.current.value = "";
+      }
+    }
+  };
+
+  const uploadFileMessage = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingFile(true);
+    setImageUploadError("");
+
+    try {
+      const fileData = await readFileAsDataUrl(file);
+      const response = await fetch(`${API_URL}/api/rooms/${roomId}/files`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          fileData,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setImageUploadError(data.message || "File upload failed.");
+        return;
+      }
+
+      setIsUploadMenuOpen(false);
+    } catch {
+      setImageUploadError("Cannot upload the file.");
+    } finally {
+      setIsUploadingFile(false);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const uploadVideoMessage = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingVideo(true);
+    setImageUploadError("");
+
+    try {
+      const videoData = await readFileAsDataUrl(file);
+      const response = await fetch(`${API_URL}/api/rooms/${roomId}/videos`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          videoData,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setImageUploadError(data.message || "Video upload failed.");
+        return;
+      }
+
+      setIsUploadMenuOpen(false);
+    } catch {
+      setImageUploadError("Cannot upload the video.");
+    } finally {
+      setIsUploadingVideo(false);
+
+      if (videoInputRef.current) {
+        videoInputRef.current.value = "";
       }
     }
   };
@@ -1415,7 +1639,7 @@ function App() {
                       disabled={voiceCall.status !== "idle"}
                       title={`Call ${onlineUser} / 呼叫 ${onlineUser}`}
                       aria-label={`Call ${onlineUser} / 呼叫 ${onlineUser}`}
-                      onClick={() => startVoiceCall(onlineUser)}
+                      onClick={() => openCallChoice(onlineUser)}
                     >
                       <IconPhone />
                     </button>
@@ -1425,6 +1649,28 @@ function App() {
             : <span>No one online / 暂无人在线</span>}
         </div>
       </div>
+
+      {!isAdmin && callChoiceUser && (
+        <div className="call-choice-backdrop" role="dialog" aria-modal="true">
+          <div className="call-choice-modal">
+            <strong>Call {callChoiceUser}</strong>
+            <span>Choose call type / 选择通话方式</span>
+            <div className="call-choice-actions">
+              <button type="button" onClick={() => startVoiceCall(callChoiceUser, "audio")}>
+                <IconPhone />
+                <span>Voice / 语音</span>
+              </button>
+              <button type="button" onClick={() => startVoiceCall(callChoiceUser, "video")}>
+                <IconVideo />
+                <span>Video / 视频</span>
+              </button>
+            </div>
+            <button className="call-choice-cancel" type="button" onClick={() => setCallChoiceUser("")}>
+              Cancel / 取消
+            </button>
+          </div>
+        </div>
+      )}
 
       {!isAdmin && voiceCall.status !== "idle" && (
         <div className="voice-call-panel">
@@ -1438,7 +1684,13 @@ function App() {
                     ? `Connecting / 正在连接: ${voiceCall.peer}`
                     : `In call / 通话中: ${voiceCall.peer}`}
             </strong>
+            <span>Type / 类型: {voiceCall.callType === "video" ? "Video / 视频" : "Voice / 语音"}</span>
             <span>Only two people can be in a room call. / 每个房间同时只能两人通话。</span>
+            {voiceCall.startedAt ? (
+              <span className="voice-call-timer">
+                Duration / call time: {formatCallDuration(voiceCallElapsedSeconds)}
+              </span>
+            ) : null}
           </div>
           <div className="voice-call-actions">
             {voiceCall.status === "incoming" ? (
@@ -1456,6 +1708,12 @@ function App() {
               </button>
             )}
           </div>
+          {voiceCall.callType === "video" && (
+            <div className="video-call-stage">
+              <video className="remote-video" ref={remoteVideoRef} autoPlay playsInline />
+              <video className="local-video" ref={localVideoRef} autoPlay muted playsInline />
+            </div>
+          )}
           <audio ref={remoteAudioRef} autoPlay playsInline />
         </div>
       )}
@@ -1510,6 +1768,20 @@ function App() {
                       <audio controls src={`${API_URL}${msg.audioUrl}`} />
                       <span>{msg.filename || "Voice message"}</span>
                     </div>
+                  ) : msg.type === "video" ? (
+                    <div className="chat-video-message">
+                      <video controls playsInline src={`${API_URL}${msg.videoUrl}`} />
+                      <span>{msg.filename || "Shared video"}</span>
+                    </div>
+                  ) : msg.type === "file" ? (
+                    <a
+                      className="chat-file-link"
+                      download={msg.filename || true}
+                      href={`${API_URL}${msg.fileUrl}`}
+                    >
+                      <IconFile />
+                      <span>{msg.filename || "Shared file"}</span>
+                    </a>
                   ) : (
                     <div>{renderMessageText(msg.text)}</div>
                   )}
@@ -1541,15 +1813,45 @@ function App() {
           type="file"
           onChange={(e) => uploadImageMessage(e.target.files?.[0])}
         />
+        <input
+          className="image-file-input"
+          ref={fileInputRef}
+          type="file"
+          onChange={(e) => uploadFileMessage(e.target.files?.[0])}
+        />
+        <input
+          accept="video/*"
+          className="image-file-input"
+          ref={videoInputRef}
+          type="file"
+          onChange={(e) => uploadVideoMessage(e.target.files?.[0])}
+        />
         <button
-          className="image-upload-button"
-          disabled={isUploadingImage}
-          title="Photo / 图片"
-          aria-label="Photo / 图片"
-          onClick={() => imageInputRef.current?.click()}
+          className="upload-menu-button"
+          disabled={isUploadingImage || isUploadingFile || isUploadingVideo}
+          title="Add / 添加"
+          aria-label="Add / 添加"
+          aria-expanded={isUploadMenuOpen}
+          onClick={() => setIsUploadMenuOpen((open) => !open)}
         >
-          {isUploadingImage ? "..." : <IconPhoto />}
+          {isUploadingImage || isUploadingFile || isUploadingVideo ? "..." : <IconPlus />}
         </button>
+        {isUploadMenuOpen && (
+          <div className="upload-menu">
+            <button type="button" onClick={() => imageInputRef.current?.click()}>
+              <IconPhoto />
+              <span>Photo / 图片</span>
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()}>
+              <IconFile />
+              <span>File / 文件</span>
+            </button>
+            <button type="button" onClick={() => videoInputRef.current?.click()}>
+              <IconFilm />
+              <span>Video / 视频</span>
+            </button>
+          </div>
+        )}
         <button
           className={`audio-record-button ${isRecordingAudio ? "is-recording" : ""}`}
           disabled={isUploadingAudio}
@@ -1587,3 +1889,4 @@ function App() {
 }
 
 export default App;
+

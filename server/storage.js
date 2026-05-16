@@ -3,8 +3,10 @@ const fs = require("fs");
 const path = require("path");
 const {
   AUDIO_UPLOAD_DIR,
+  FILE_UPLOAD_DIR,
   FILE_ENCRYPTION_KEY,
   PHOTO_UPLOAD_DIR,
+  VIDEO_UPLOAD_DIR,
   SUPABASE_AUDIO_BUCKET,
   SUPABASE_PHOTO_BUCKET,
   SUPABASE_SERVICE_ROLE_KEY,
@@ -24,6 +26,16 @@ const LOCAL_UPLOAD_PREFIXES = [
     baseDir: AUDIO_UPLOAD_DIR,
     kind: "audio",
     prefix: "/uploads/audio/",
+  },
+  {
+    baseDir: FILE_UPLOAD_DIR,
+    kind: "file",
+    prefix: "/uploads/files/",
+  },
+  {
+    baseDir: VIDEO_UPLOAD_DIR,
+    kind: "video",
+    prefix: "/uploads/videos/",
   },
 ];
 
@@ -239,10 +251,26 @@ function getLocalUploadInfo(kind, filename) {
     };
   }
 
+  if (kind === "audio") {
+    return {
+      uploadDir: AUDIO_UPLOAD_DIR,
+      uploadPath: path.join(AUDIO_UPLOAD_DIR, encryptedFilename),
+      clientUrl: `/uploads/audio/${encryptedFilename}`,
+    };
+  }
+
+  if (kind === "file") {
+    return {
+      uploadDir: FILE_UPLOAD_DIR,
+      uploadPath: path.join(FILE_UPLOAD_DIR, encryptedFilename),
+      clientUrl: `/uploads/files/${encryptedFilename}`,
+    };
+  }
+
   return {
-    uploadDir: AUDIO_UPLOAD_DIR,
-    uploadPath: path.join(AUDIO_UPLOAD_DIR, encryptedFilename),
-    clientUrl: `/uploads/audio/${encryptedFilename}`,
+    uploadDir: VIDEO_UPLOAD_DIR,
+    uploadPath: path.join(VIDEO_UPLOAD_DIR, encryptedFilename),
+    clientUrl: `/uploads/videos/${encryptedFilename}`,
   };
 }
 
@@ -251,7 +279,14 @@ function getBucketForKind(kind) {
 }
 
 function getStoragePathForUpload(kind, roomId, filename) {
-  const folder = kind === "image" ? "photos" : "audio";
+  const folder =
+    kind === "image"
+      ? "photos"
+      : kind === "audio"
+        ? "audio"
+        : kind === "video"
+          ? "videos"
+          : "files";
   const safeRoomId = String(roomId || "room").replace(/[^a-zA-Z0-9_-]/g, "-");
 
   return `${folder}/${safeRoomId}/${filename}`;
@@ -326,7 +361,14 @@ async function readLocalUpload(url) {
   return {
     ok: true,
     buffer: fileBuffer,
-    contentType: local.kind === "image" ? "image/*" : "audio/*",
+    contentType:
+      local.kind === "image"
+        ? "image/*"
+        : local.kind === "audio"
+          ? "audio/*"
+          : local.kind === "video"
+            ? "video/*"
+          : "application/octet-stream",
     cacheControl: "private, max-age=3600",
   };
 }
@@ -345,7 +387,7 @@ async function saveLocalEncryptedUpload({ kind, filename, buffer, contentType })
 }
 
 function registerStorageRoutes(app, { requireSession }) {
-  app.get(/^\/uploads\/(photos|audio)\/(.+)$/, async (req, res) => {
+  app.get(/^\/uploads\/(photos|audio|files|videos)\/(.+)$/, async (req, res) => {
     const session = await requireSession(req, res);
 
     if (!session) {
