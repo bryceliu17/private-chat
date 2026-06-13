@@ -215,22 +215,22 @@ function ChatRoomView({
     <div className="chat-page">
       <div className="chat-header">
         <div className="chat-title-row">
-          <h2>Room / æˆ¿é—´: {roomId}</h2>
+          <h2>Room / 房间: {roomId}</h2>
           <button className="support-button" onClick={startSupportPayment}>
-            Support / æ‰“èµ
+            Support / 打赏
           </button>
           <button className="leave-button" onClick={leaveRoom}>
-            Leave / ç¦»å¼€
+            Leave / 离开
           </button>
         </div>
         <div className="room-online-row">
-          <span className="room-online-label">Online / åœ¨çº¿:</span>
+          <span className="room-online-label">Online / 在线:</span>
           {currentRoomUsers.length
             ? currentRoomUsers.map((onlineUser) => (
                 <span className="room-user-chip" key={onlineUser}>
                   <span>{onlineUser}</span>
                   {onlineUser === username ? (
-                    <span className="self-chip">You / è‡ªå·±</span>
+                    <span className="self-chip">You / 自己</span>
                   ) : !isAdmin ? (
                     <button
                       className="inline-call-button"
@@ -252,19 +252,19 @@ function ChatRoomView({
         <div className="call-choice-backdrop" role="dialog" aria-modal="true">
           <div className="call-choice-modal">
             <strong>Call {callChoiceUser}</strong>
-            <span>Choose call type / é€‰æ‹©é€šè¯æ–¹å¼</span>
+            <span>Choose call type / 选择通话方式</span>
             <div className="call-choice-actions">
               <button type="button" onClick={() => startVoiceCall(callChoiceUser, "audio")}>
                 <IconPhone />
-                <span>Voice / è¯­éŸ³</span>
+                <span>Voice / 语音</span>
               </button>
               <button type="button" onClick={() => startVoiceCall(callChoiceUser, "video")}>
                 <IconVideo />
-                <span>Video / è§†é¢‘</span>
+                <span>Video / 视频</span>
               </button>
             </div>
             <button className="call-choice-cancel" type="button" onClick={() => setCallChoiceUser("")}>
-              Cancel / å–æ¶ˆ
+              Cancel / 取消
             </button>
           </div>
         </div>
@@ -275,15 +275,15 @@ function ChatRoomView({
           <div>
             <strong>
               {voiceCall.status === "incoming"
-                ? `Incoming call / æ¥ç”µ: ${voiceCall.peer}`
+                ? `Incoming call / 来电: ${voiceCall.peer}`
                 : voiceCall.status === "ringing"
-                  ? `Calling / å‘¼å«ä¸­: ${voiceCall.peer}`
+                  ? `Calling / 呼叫中: ${voiceCall.peer}`
                   : voiceCall.status === "connecting"
-                    ? `Connecting / æ­£åœ¨è¿žæŽ¥: ${voiceCall.peer}`
-                    : `In call / é€šè¯ä¸­: ${voiceCall.peer}`}
+                    ? `Connecting / 正在连接: ${voiceCall.peer}`
+                    : `In call / 通话中: ${voiceCall.peer}`}
             </strong>
-            <span>Type / ç±»åž‹: {voiceCall.callType === "video" ? "Video / è§†é¢‘" : "Voice / è¯­éŸ³"}</span>
-            <span>Only two people can be in a room call. / æ¯ä¸ªæˆ¿é—´åŒæ—¶åªèƒ½ä¸¤äººé€šè¯ã€‚</span>
+            <span>Type / 类型: {voiceCall.callType === "video" ? "Video / 视频" : "Voice / 语音"}</span>
+            <span>Only two people can be in a room call. / 每个房间同时只能两人通话。</span>
             {voiceCall.startedAt ? (
               <span className="voice-call-timer">
                 Duration / call time: {formatCallDuration(voiceCallElapsedSeconds)}
@@ -294,15 +294,15 @@ function ChatRoomView({
             {voiceCall.status === "incoming" ? (
               <>
                 <button className="voice-accept-button" onClick={acceptVoiceCall}>
-                  Accept / æŽ¥å¬
+                  Accept / 接听
                 </button>
                 <button className="voice-hangup-button" onClick={rejectVoiceCall}>
-                  Decline / æ‹’ç»
+                  Decline / 拒绝
                 </button>
               </>
             ) : (
               <button className="voice-hangup-button" onClick={hangupVoiceCall}>
-                Hang up / æŒ‚æ–­
+                Hang up / 挂断
               </button>
             )}
           </div>
@@ -427,8 +427,8 @@ function ChatRoomView({
           <button
             className="upload-menu-button"
             disabled={isUploadingImage || isUploadingFile || isUploadingVideo}
-            title="Add / æ·»åŠ "
-            aria-label="Add / æ·»åŠ "
+            title="Add / 添加"
+            aria-label="Add / 添加"
             aria-expanded={isUploadMenuOpen}
             onClick={() => setIsUploadMenuOpen((open) => !open)}
           >
@@ -438,29 +438,29 @@ function ChatRoomView({
             <div className="upload-menu">
               <button type="button" onClick={() => imageInputRef.current?.click()}>
                 <IconPhoto />
-                <span>Photo / å›¾ç‰‡</span>
+                <span>Photo / 图片</span>
               </button>
               <button type="button" onClick={() => fileInputRef.current?.click()}>
                 <IconFile />
-                <span>File / æ–‡ä»¶</span>
+                <span>File / 文件</span>
               </button>
               <button type="button" onClick={() => videoInputRef.current?.click()}>
                 <IconFilm />
-                <span>Video / è§†é¢‘</span>
+                <span>Video / 视频</span>
               </button>
             </div>
           )}
           <button
             className={`audio-record-button ${isRecordingAudio ? "is-recording" : ""}`}
             disabled={isUploadingAudio}
-            title={isRecordingAudio ? "Stop recording / åœæ­¢å½•éŸ³" : "Voice / è¯­éŸ³"}
-            aria-label={isRecordingAudio ? "Stop recording / åœæ­¢å½•éŸ³" : "Voice / è¯­éŸ³"}
+            title={isRecordingAudio ? "Stop recording / 停止录音" : "Voice / 语音"}
+            aria-label={isRecordingAudio ? "Stop recording / 停止录音" : "Voice / 语音"}
             onClick={isRecordingAudio ? stopAudioRecording : startAudioRecording}
           >
             {isRecordingAudio ? <IconStop /> : isUploadingAudio ? "..." : <IconMic />}
           </button>
           <textarea
-            placeholder="Type a message / è¾“å…¥æ¶ˆæ¯..."
+            placeholder="Type a message / 输入消息..."
             ref={messageInputRef}
             rows={1}
             value={message}
@@ -474,8 +474,8 @@ function ChatRoomView({
           />
           <button
             className="send-button"
-            title="Send / å‘é€"
-            aria-label="Send / å‘é€"
+            title="Send / 发送"
+            aria-label="Send / 发送"
             onClick={sendMessage}
           >
             <IconSend />
