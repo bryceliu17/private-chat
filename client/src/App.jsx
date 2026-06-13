@@ -8,9 +8,34 @@ import "./App.css";
 const API_URL = import.meta.env.DEV
   ? `${window.location.protocol}//${window.location.hostname}:5001`
   : window.location.origin;
+const LAST_ROOM_ID_KEY = "private-chat:last-room-id";
 const socket = io(API_URL, {
   withCredentials: true,
 });
+
+function readLastRoomId() {
+  try {
+    return window.localStorage.getItem(LAST_ROOM_ID_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function saveLastRoomId(roomId) {
+  try {
+    window.localStorage.setItem(LAST_ROOM_ID_KEY, roomId);
+  } catch {
+    // Ignore storage failures; room restore is a convenience feature.
+  }
+}
+
+function clearLastRoomId() {
+  try {
+    window.localStorage.removeItem(LAST_ROOM_ID_KEY);
+  } catch {
+    // Ignore storage failures; the in-memory room state is still cleared.
+  }
+}
 
 function App() {
   const [loginName, setLoginName] = useState("");
@@ -128,6 +153,21 @@ function App() {
 
         if (data.isAdmin) {
           await loadAdminUsers();
+        }
+
+        const lastRoomId = readLastRoomId();
+        const shouldRestoreRoom = (data.rooms || []).some((room) => room.id === lastRoomId);
+
+        if (shouldRestoreRoom) {
+          socket.emit("join_room", {
+            roomId: lastRoomId,
+          });
+          setRoomId(lastRoomId);
+          setJoined(true);
+          setCallChoiceUser("");
+          setRoomNotice("");
+        } else {
+          clearLastRoomId();
         }
       } catch {
         setUsername("");
@@ -498,6 +538,7 @@ function App() {
       }
 
       resetVoiceCall();
+      clearLastRoomId();
       setJoined(false);
       setRoomId("");
       setMessage("");
@@ -764,6 +805,7 @@ function App() {
       roomId: targetRoomId,
     });
 
+    saveLastRoomId(targetRoomId);
     setRoomId(targetRoomId);
     setJoined(true);
     setCallChoiceUser("");
@@ -781,6 +823,7 @@ function App() {
       roomId,
     });
 
+    clearLastRoomId();
     setJoined(false);
     setRoomId("");
     setMessage("");
