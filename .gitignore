@@ -21,10 +21,6 @@ client/.vite/
 .vscode/
 server/uploads/
 server/migrations/init.sql
-tools/
-deploy/nginx/logs/
-deploy/nginx/temp/
-deploy/nginx/certs/
 *.dump
 *.backup
 *.bak

@@ -666,6 +666,20 @@ body {
   white-space: nowrap;
 }
 
+.support-button {
+  padding: 8px 12px;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.support-button:hover {
+  background: #fef3c7;
+}
+
 .leave-button:hover {
   background: #f6f6f6;
 }

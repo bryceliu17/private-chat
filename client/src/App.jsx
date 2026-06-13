@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import ChatRoomView from "./components/ChatRoomView";
 import LoginView from "./components/LoginView";
 import RoomListView from "./components/RoomListView";
 import "./App.css";
@@ -7,165 +8,9 @@ import "./App.css";
 const API_URL = import.meta.env.DEV
   ? `${window.location.protocol}//${window.location.hostname}:5001`
   : window.location.origin;
-const URL_PATTERN = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-const TRAILING_URL_PUNCTUATION = /[.,!?;:]+$/;
 const socket = io(API_URL, {
   withCredentials: true,
 });
-
-function formatMessageTime(createdAt) {
-  if (!createdAt) {
-    return "";
-  }
-
-  const timestamp =
-    typeof createdAt === "string" && /^\d+$/.test(createdAt)
-      ? Number(createdAt)
-      : createdAt;
-  const date = new Date(timestamp);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
-function renderMessageText(text) {
-  const safeText = String(text || "");
-  const parts = [];
-  let lastIndex = 0;
-
-  for (const match of safeText.matchAll(URL_PATTERN)) {
-    const rawUrl = match[0];
-    const startIndex = match.index ?? 0;
-    const displayUrl = rawUrl.replace(TRAILING_URL_PUNCTUATION, "");
-    const trailingText = rawUrl.slice(displayUrl.length);
-    const href = displayUrl.startsWith("www.")
-      ? `https://${displayUrl}`
-      : displayUrl;
-
-    if (startIndex > lastIndex) {
-      parts.push(safeText.slice(lastIndex, startIndex));
-    }
-
-    parts.push(
-      <a
-        className="message-link"
-        href={href}
-        key={`${startIndex}-${displayUrl}`}
-        rel="noreferrer noopener"
-        target="_blank"
-      >
-        {displayUrl}
-      </a>
-    );
-
-    if (trailingText) {
-      parts.push(trailingText);
-    }
-
-    lastIndex = startIndex + rawUrl.length;
-  }
-
-  if (lastIndex < safeText.length) {
-    parts.push(safeText.slice(lastIndex));
-  }
-
-  return parts.length ? parts : safeText;
-}
-
-function IconPhoto() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7Z" />
-      <path d="m8 16 2.4-3 2 2.3 1.6-1.8 2 2.5" />
-      <path d="M15.5 8.5h.01" />
-    </svg>
-  );
-}
-
-function IconPlus() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function IconFile() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z" />
-      <path d="M14 2v5h5" />
-      <path d="M9 13h6" />
-      <path d="M9 17h4" />
-    </svg>
-  );
-}
-
-function IconMic() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
-      <path d="M5 11a7 7 0 0 0 14 0" />
-      <path d="M12 18v3" />
-      <path d="M9 21h6" />
-    </svg>
-  );
-}
-
-function IconStop() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M8 8h8v8H8z" />
-    </svg>
-  );
-}
-
-function IconSend() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M4 4l16 8-16 8 3-8-3-8Z" />
-      <path d="M7 12h13" />
-    </svg>
-  );
-}
-
-function IconPhone() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.4 2.1L8 9.7a16 16 0 0 0 6.3 6.3l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.5 2.6.6A2 2 0 0 1 22 16.9Z" />
-    </svg>
-  );
-}
-
-function IconVideo() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M4 6h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
-      <path d="m17 10 5-3v10l-5-3" />
-    </svg>
-  );
-}
-
-function IconFilm() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M4 5h16v14H4z" />
-      <path d="M8 5v14" />
-      <path d="M16 5v14" />
-      <path d="M4 9h4" />
-      <path d="M16 9h4" />
-      <path d="M4 15h4" />
-      <path d="M16 15h4" />
-    </svg>
-  );
-}
 
 function App() {
   const [loginName, setLoginName] = useState("");
@@ -471,14 +316,6 @@ function App() {
     });
     setCallChoiceUser("");
     setVoiceCallElapsedSeconds(0);
-  }
-
-  function formatCallDuration(totalSeconds) {
-    const safeSeconds = Math.max(0, totalSeconds);
-    const minutes = Math.floor(safeSeconds / 60);
-    const seconds = safeSeconds % 60;
-
-    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
 
   async function getLocalVoiceStream(callType = "audio") {
@@ -1052,6 +889,40 @@ function App() {
     setAdminMessage("");
   };
 
+  const startSupportPayment = async () => {
+    setImageUploadError("");
+    setAdminMessage("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.url) {
+        const errorMessage = data.message || "Cannot start payment.";
+
+        if (joined) {
+          setImageUploadError(errorMessage);
+        } else {
+          setAdminMessage(errorMessage);
+        }
+        return;
+      }
+
+      window.location.assign(data.url);
+    } catch {
+      const errorMessage = "Cannot connect to payment service.";
+
+      if (joined) {
+        setImageUploadError(errorMessage);
+      } else {
+        setAdminMessage(errorMessage);
+      }
+    }
+  };
+
   const updateAdminUserEmail = async (targetUserId) => {
     const targetUser = adminUsers.find((user) => user.id === targetUserId);
 
@@ -1567,11 +1438,6 @@ function App() {
     setMessage("");
   };
 
-  const currentRoom = rooms.find((room) => room.id === roomId);
-  const currentRoomUsers = currentRoom?.onlineUsers || [];
-  const currentRoomOtherUsers = currentRoomUsers.filter(
-    (onlineUser) => onlineUser !== username
-  );
 
   if (!isLoggedIn) {
     return (
@@ -1608,6 +1474,7 @@ function App() {
         savingPasswordUserId={savingPasswordUserId}
         savingUserId={savingUserId}
         setAdminUsers={setAdminUsers}
+        startSupportPayment={startSupportPayment}
         updateAdminUserEmail={updateAdminUserEmail}
         updateAdminUserMfa={updateAdminUserMfa}
         updateAdminUserPassword={updateAdminUserPassword}
@@ -1617,274 +1484,51 @@ function App() {
   }
 
   return (
-    <div className="chat-page">
-      <div className="chat-header">
-        <div className="chat-title-row">
-          <h2>Room / 房间: {roomId}</h2>
-          <button className="leave-button" onClick={leaveRoom}>
-            Leave / 离开
-          </button>
-        </div>
-        <div className="room-online-row">
-          <span className="room-online-label">Online / 在线:</span>
-          {currentRoomUsers.length
-            ? currentRoomUsers.map((onlineUser) => (
-                <span className="room-user-chip" key={onlineUser}>
-                  <span>{onlineUser}</span>
-                  {onlineUser === username ? (
-                    <span className="self-chip">You / 自己</span>
-                  ) : !isAdmin ? (
-                    <button
-                      className="inline-call-button"
-                      disabled={voiceCall.status !== "idle"}
-                      title={`Call ${onlineUser} / 呼叫 ${onlineUser}`}
-                      aria-label={`Call ${onlineUser} / 呼叫 ${onlineUser}`}
-                      onClick={() => openCallChoice(onlineUser)}
-                    >
-                      <IconPhone />
-                    </button>
-                  ) : null}
-                </span>
-              ))
-            : <span>No one online / 暂无人在线</span>}
-        </div>
-      </div>
-
-      {!isAdmin && callChoiceUser && (
-        <div className="call-choice-backdrop" role="dialog" aria-modal="true">
-          <div className="call-choice-modal">
-            <strong>Call {callChoiceUser}</strong>
-            <span>Choose call type / 选择通话方式</span>
-            <div className="call-choice-actions">
-              <button type="button" onClick={() => startVoiceCall(callChoiceUser, "audio")}>
-                <IconPhone />
-                <span>Voice / 语音</span>
-              </button>
-              <button type="button" onClick={() => startVoiceCall(callChoiceUser, "video")}>
-                <IconVideo />
-                <span>Video / 视频</span>
-              </button>
-            </div>
-            <button className="call-choice-cancel" type="button" onClick={() => setCallChoiceUser("")}>
-              Cancel / 取消
-            </button>
-          </div>
-        </div>
-      )}
-
-      {!isAdmin && voiceCall.status !== "idle" && (
-        <div className="voice-call-panel">
-          <div>
-            <strong>
-              {voiceCall.status === "incoming"
-                ? `Incoming call / 来电: ${voiceCall.peer}`
-                : voiceCall.status === "ringing"
-                  ? `Calling / 呼叫中: ${voiceCall.peer}`
-                  : voiceCall.status === "connecting"
-                    ? `Connecting / 正在连接: ${voiceCall.peer}`
-                    : `In call / 通话中: ${voiceCall.peer}`}
-            </strong>
-            <span>Type / 类型: {voiceCall.callType === "video" ? "Video / 视频" : "Voice / 语音"}</span>
-            <span>Only two people can be in a room call. / 每个房间同时只能两人通话。</span>
-            {voiceCall.startedAt ? (
-              <span className="voice-call-timer">
-                Duration / call time: {formatCallDuration(voiceCallElapsedSeconds)}
-              </span>
-            ) : null}
-          </div>
-          <div className="voice-call-actions">
-            {voiceCall.status === "incoming" ? (
-              <>
-                <button className="voice-accept-button" onClick={acceptVoiceCall}>
-                  Accept / 接听
-                </button>
-                <button className="voice-hangup-button" onClick={rejectVoiceCall}>
-                  Decline / 拒绝
-                </button>
-              </>
-            ) : (
-              <button className="voice-hangup-button" onClick={hangupVoiceCall}>
-                Hang up / 挂断
-              </button>
-            )}
-          </div>
-          {voiceCall.callType === "video" && (
-            <div className="video-call-stage">
-              <video className="remote-video" ref={remoteVideoRef} autoPlay playsInline />
-              <video className="local-video" ref={localVideoRef} autoPlay muted playsInline />
-            </div>
-          )}
-          <audio ref={remoteAudioRef} autoPlay playsInline />
-        </div>
-      )}
-
-      {voiceCallError && (
-        <p className="voice-call-error">{voiceCallError}</p>
-      )}
-
-      <div className="message-list" ref={messageListRef}>
-        {messages.map((msg) => {
-          const isMe = msg.username === username;
-          const isSystem = msg.type === "system";
-
-          return (
-            <div
-              key={msg.id}
-              className={`message-row ${
-                isSystem ? "system-row" : isMe ? "my-row" : "other-row"
-              }`}
-            >
-              <div className={`message-stack ${isMe ? "my-stack" : "other-stack"}`}>
-                {!isSystem && (
-                  <div className="message-meta">
-                    <span className="message-author">{msg.username}</span>
-                    <span className="message-time">
-                      {formatMessageTime(msg.createdAt)}
-                    </span>
-                  </div>
-                )}
-
-                <div
-                  className={`message-bubble ${
-                    isSystem ? "system-bubble" : isMe ? "my-bubble" : "other-bubble"
-                  }`}
-                >
-                  {msg.type === "image" ? (
-                    <a
-                      className="chat-image-link"
-                      href={`${API_URL}${msg.imageUrl}`}
-                      rel="noreferrer noopener"
-                      target="_blank"
-                    >
-                      <img
-                        alt={msg.filename || "Shared image"}
-                        className="chat-image"
-                        src={`${API_URL}${msg.imageUrl}`}
-                      />
-                      <span>{msg.filename || "Shared image"}</span>
-                    </a>
-                  ) : msg.type === "audio" ? (
-                    <div className="chat-audio-message">
-                      <audio controls src={`${API_URL}${msg.audioUrl}`} />
-                      <span>{msg.filename || "Voice message"}</span>
-                    </div>
-                  ) : msg.type === "video" ? (
-                    <div className="chat-video-message">
-                      <video controls playsInline src={`${API_URL}${msg.videoUrl}`} />
-                      <span>{msg.filename || "Shared video"}</span>
-                    </div>
-                  ) : msg.type === "file" ? (
-                    <a
-                      className="chat-file-link"
-                      download={msg.filename || true}
-                      href={`${API_URL}${msg.fileUrl}`}
-                    >
-                      <IconFile />
-                      <span>{msg.filename || "Shared file"}</span>
-                    </a>
-                  ) : (
-                    <div>{renderMessageText(msg.text)}</div>
-                  )}
-                </div>
-                {isAdmin && !isSystem && (
-                  <button
-                    className="delete-message-button"
-                    onClick={() => deleteMessage(msg.id)}
-                  >
-                    Delete / 删除
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {imageUploadError && (
-        <p className="image-upload-error">{imageUploadError}</p>
-      )}
-
-      {!isAdmin && (
-      <div className="input-bar">
-        <input
-          accept="image/png,image/jpeg,image/gif,image/webp"
-          className="image-file-input"
-          ref={imageInputRef}
-          type="file"
-          onChange={(e) => uploadImageMessage(e.target.files?.[0])}
-        />
-        <input
-          className="image-file-input"
-          ref={fileInputRef}
-          type="file"
-          onChange={(e) => uploadFileMessage(e.target.files?.[0])}
-        />
-        <input
-          accept="video/*"
-          className="image-file-input"
-          ref={videoInputRef}
-          type="file"
-          onChange={(e) => uploadVideoMessage(e.target.files?.[0])}
-        />
-        <button
-          className="upload-menu-button"
-          disabled={isUploadingImage || isUploadingFile || isUploadingVideo}
-          title="Add / 添加"
-          aria-label="Add / 添加"
-          aria-expanded={isUploadMenuOpen}
-          onClick={() => setIsUploadMenuOpen((open) => !open)}
-        >
-          {isUploadingImage || isUploadingFile || isUploadingVideo ? "..." : <IconPlus />}
-        </button>
-        {isUploadMenuOpen && (
-          <div className="upload-menu">
-            <button type="button" onClick={() => imageInputRef.current?.click()}>
-              <IconPhoto />
-              <span>Photo / 图片</span>
-            </button>
-            <button type="button" onClick={() => fileInputRef.current?.click()}>
-              <IconFile />
-              <span>File / 文件</span>
-            </button>
-            <button type="button" onClick={() => videoInputRef.current?.click()}>
-              <IconFilm />
-              <span>Video / 视频</span>
-            </button>
-          </div>
-        )}
-        <button
-          className={`audio-record-button ${isRecordingAudio ? "is-recording" : ""}`}
-          disabled={isUploadingAudio}
-          title={isRecordingAudio ? "Stop recording / 停止录音" : "Voice / 语音"}
-          aria-label={isRecordingAudio ? "Stop recording / 停止录音" : "Voice / 语音"}
-          onClick={isRecordingAudio ? stopAudioRecording : startAudioRecording}
-        >
-          {isRecordingAudio ? <IconStop /> : isUploadingAudio ? "..." : <IconMic />}
-        </button>
-        <textarea
-          placeholder="Type a message / 输入消息..."
-          ref={messageInputRef}
-          rows={1}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
-            }
-          }}
-        />
-        <button
-          className="send-button"
-          title="Send / 发送"
-          aria-label="Send / 发送"
-          onClick={sendMessage}
-        >
-          <IconSend />
-        </button>
-      </div>
-      )}
-    </div>
+    <ChatRoomView
+      acceptVoiceCall={acceptVoiceCall}
+      apiUrl={API_URL}
+      callChoiceUser={callChoiceUser}
+      deleteMessage={deleteMessage}
+      fileInputRef={fileInputRef}
+      hangupVoiceCall={hangupVoiceCall}
+      imageInputRef={imageInputRef}
+      imageUploadError={imageUploadError}
+      isAdmin={isAdmin}
+      isRecordingAudio={isRecordingAudio}
+      isUploadMenuOpen={isUploadMenuOpen}
+      isUploadingAudio={isUploadingAudio}
+      isUploadingFile={isUploadingFile}
+      isUploadingImage={isUploadingImage}
+      isUploadingVideo={isUploadingVideo}
+      leaveRoom={leaveRoom}
+      localVideoRef={localVideoRef}
+      message={message}
+      messageInputRef={messageInputRef}
+      messageListRef={messageListRef}
+      messages={messages}
+      openCallChoice={openCallChoice}
+      rejectVoiceCall={rejectVoiceCall}
+      remoteAudioRef={remoteAudioRef}
+      remoteVideoRef={remoteVideoRef}
+      roomId={roomId}
+      rooms={rooms}
+      sendMessage={sendMessage}
+      setCallChoiceUser={setCallChoiceUser}
+      setIsUploadMenuOpen={setIsUploadMenuOpen}
+      setMessage={setMessage}
+      startAudioRecording={startAudioRecording}
+      startSupportPayment={startSupportPayment}
+      startVoiceCall={startVoiceCall}
+      stopAudioRecording={stopAudioRecording}
+      uploadFileMessage={uploadFileMessage}
+      uploadImageMessage={uploadImageMessage}
+      uploadVideoMessage={uploadVideoMessage}
+      username={username}
+      videoInputRef={videoInputRef}
+      voiceCall={voiceCall}
+      voiceCallElapsedSeconds={voiceCallElapsedSeconds}
+      voiceCallError={voiceCallError}
+    />
   );
 }
 

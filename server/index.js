@@ -11,6 +11,7 @@ const {
   requireSession,
 } = require("./auth");
 const { registerRoomRoutes } = require("./messages");
+const { registerPaymentRoutes, registerPaymentWebhookRoute } = require("./payments");
 const { createPresence } = require("./presence");
 const { registerStorageRoutes } = require("./storage");
 const { registerSocketHandlers } = require("./sockets");
@@ -30,6 +31,7 @@ const corsOptions = {
 const app = express();
 
 app.use(cors(corsOptions));
+registerPaymentWebhookRoute(app);
 app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
 
 const server = http.createServer(app);
@@ -45,6 +47,9 @@ presence.setSocketSessionResolver(getSocketSession);
 
 registerAuthRoutes(app);
 registerStorageRoutes(app, {
+  requireSession,
+});
+registerPaymentRoutes(app, {
   requireSession,
 });
 registerRoomRoutes(app, {

@@ -68,14 +68,12 @@ Default local ports:
 ```text
 Frontend: http://localhost:5173
 Backend:  http://localhost:5001
-Nginx local test: http://localhost:8080
 ```
 
 ## Security Notes
 
 - Do not commit `server/.env`.
 - Do not commit `server/uploads/`.
-- Do not commit local TLS certs.
 - Text message bodies are encrypted at rest with `MESSAGE_ENCRYPTION_KEY`.
 - Keep `MESSAGE_ENCRYPTION_KEY` backed up. If it changes, old encrypted text messages cannot be decrypted.
 - Uploaded images and audio files are not encrypted at rest yet.
@@ -113,23 +111,16 @@ Build frontend:
 npm.cmd --prefix client run build
 ```
 
-## Nginx Deployment
-
-Use `deploy/nginx/private-chat.conf` as the production starting point.
-
-Production routing:
-
-- `/`: serve `client/dist`
-- `/api/`: proxy to `http://127.0.0.1:5001`
-- `/socket.io/`: proxy to `http://127.0.0.1:5001`
-- `/uploads/`: proxy to `http://127.0.0.1:5001`
-
 Recommended production `.env` values:
 
 ```text
 PUBLIC_ORIGIN=https://your-domain.example
 SESSION_COOKIE_SECURE=true
 REQUEST_BODY_LIMIT=200mb
+STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
+STRIPE_WEBHOOK_SECRET=whsec_your-stripe-webhook-secret
+SUPPORT_AMOUNT_CENTS=500
+SUPPORT_CURRENCY=aud
 MESSAGE_ENCRYPTION_KEY=your-existing-key
 ```
 
@@ -213,7 +204,6 @@ npm.cmd run dev
 ```text
 前端：http://localhost:5173
 后端：http://localhost:5001
-Nginx 本地测试：http://localhost:8080
 ```
 
 如果要启动 Docker 里的 PostgreSQL：
@@ -226,7 +216,6 @@ docker compose up -d postgres
 
 - 不要提交 `server/.env`。
 - 不要提交 `server/uploads/`。
-- 不要提交本地 TLS 证书。
 - 文字消息使用 `MESSAGE_ENCRYPTION_KEY` 加密后存储。
 - 必须备份好 `MESSAGE_ENCRYPTION_KEY`。如果换了 key，旧的加密文字消息将无法解密。
 - 上传的图片和音频文件目前还没有本地落盘加密。
@@ -263,17 +252,6 @@ npm.cmd --prefix server test
 ```powershell
 npm.cmd --prefix client run build
 ```
-
-## Nginx 部署
-
-生产环境可以从 `deploy/nginx/private-chat.conf` 开始改。
-
-生产路由：
-
-- `/`：托管 `client/dist`
-- `/api/`：反向代理到 `http://127.0.0.1:5001`
-- `/socket.io/`：反向代理到 `http://127.0.0.1:5001`
-- `/uploads/`：反向代理到 `http://127.0.0.1:5001`
 
 推荐生产 `.env` 配置：
 

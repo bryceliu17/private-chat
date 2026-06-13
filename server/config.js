@@ -13,15 +13,8 @@ const PHOTO_UPLOAD_DIR = path.join(UPLOAD_DIR, "photos");
 const AUDIO_UPLOAD_DIR = path.join(UPLOAD_DIR, "audio");
 const FILE_UPLOAD_DIR = path.join(UPLOAD_DIR, "files");
 const VIDEO_UPLOAD_DIR = path.join(UPLOAD_DIR, "videos");
-const SUPABASE_URL =
-  process.env.SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.SUPABASE_API_URL ||
-  "";
-const SUPABASE_SERVICE_ROLE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
-const SUPABASE_PHOTO_BUCKET = process.env.SUPABASE_PHOTO_BUCKET || "photos";
-const SUPABASE_AUDIO_BUCKET = process.env.SUPABASE_AUDIO_BUCKET || "audio";
+const SUPPORT_AMOUNT_CENTS = Number(process.env.SUPPORT_AMOUNT_CENTS || 500);
+const SUPPORT_CURRENCY = process.env.SUPPORT_CURRENCY || "aud";
 
 function isAllowedClientOrigin(origin) {
   try {
@@ -32,7 +25,7 @@ function isAllowedClientOrigin(origin) {
 
     if (
       url.protocol === "http:" &&
-      ["", "80", "5173", "8080"].includes(url.port) &&
+      ["", "80", "5173"].includes(url.port) &&
       isLocalOrLanHost
     ) {
       return true;
@@ -81,10 +74,12 @@ module.exports = {
   SESSION_COOKIE: "private_chat_session",
   SESSION_COOKIE_SECURE: process.env.SESSION_COOKIE_SECURE === "true",
   SESSION_MAX_AGE_MS: 1000 * 60 * 60 * 24 * 30,
-  SUPABASE_AUDIO_BUCKET,
-  SUPABASE_PHOTO_BUCKET,
-  SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_URL,
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || "",
+  STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || "",
+  SUPPORT_AMOUNT_CENTS: Number.isFinite(SUPPORT_AMOUNT_CENTS) && SUPPORT_AMOUNT_CENTS > 0
+    ? Math.round(SUPPORT_AMOUNT_CENTS)
+    : 500,
+  SUPPORT_CURRENCY,
   UPLOAD_DIR,
   VIDEO_UPLOAD_DIR,
   isAllowedClientOrigin,

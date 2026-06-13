@@ -3,7 +3,6 @@ const { db } = require("./db");
 const { decryptText, encryptText } = require("./encryption");
 const {
   deleteLocalUpload,
-  deleteObject,
   getClientFileUrl,
   saveLocalEncryptedUpload,
 } = require("./storage");
@@ -153,15 +152,6 @@ async function deleteUploadedFilesForMessages(messages) {
   for (const message of messages) {
     for (const url of [message.image_url, message.audio_url, message.file_url, message.video_url]) {
       if (!url) {
-        continue;
-      }
-
-      if (url.startsWith("supabase://")) {
-        try {
-          await deleteObject(url);
-        } catch (error) {
-          console.error(`Failed to delete Supabase upload ${url}:`, error);
-        }
         continue;
       }
 

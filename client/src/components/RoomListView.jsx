@@ -13,6 +13,7 @@ function RoomListView({
   savingPasswordUserId,
   savingUserId,
   setAdminUsers,
+  startSupportPayment,
   updateAdminUserEmail,
   updateAdminUserMfa,
   updateAdminUserPassword,
@@ -29,6 +30,9 @@ function RoomListView({
 
           <div className="header-actions">
             <div className="current-user">Current user / 当前用户: {username}</div>
+            <button className="support-button" onClick={startSupportPayment}>
+              Support / 打赏
+            </button>
             <button className="leave-button" onClick={logout}>
               Logout / 登出
             </button>
