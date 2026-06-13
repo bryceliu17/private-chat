@@ -134,17 +134,9 @@ GitHub Actions runs on every push and pull request:
 
 Pushes to `main` deploy to EC2 after the checks pass. Branch pushes and pull requests do not deploy.
 
-Required GitHub Actions secrets for deployment:
+Production deployment uses a GitHub self-hosted runner installed on the EC2 instance. The runner must be online with the default `self-hosted`, `Linux`, and `X64` labels.
 
-```text
-EC2_HOST=your-ec2-public-ip-or-domain
-EC2_USER=ubuntu
-EC2_SSH_KEY=your-private-ssh-key
-EC2_DEPLOY_PATH=/home/ubuntu/private-chat
-EC2_SSH_PORT=22
-```
-
-The deployment updates tracked files from `origin/main`, installs dependencies, builds `client/dist`, restarts the `private-chat-api` PM2 process, and reloads Nginx. It does not upload `.env` or uploads.
+The deployment updates `/home/ubuntu/private-chat` from `origin/main`, installs dependencies, builds `client/dist`, restarts the `private-chat-api` PM2 process, and reloads Nginx. It does not upload `.env` or uploads.
 
 ---
 
