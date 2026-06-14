@@ -9,19 +9,19 @@ const {
 function registerSocketHandlers(io, { getSocketSession, presence }) {
   const roomCalls = new Map();
 
-  function findRoomSocketByUsername(roomId, username) {
-    const roomSocketIds = io.sockets.adapter.rooms.get(roomId);
-
-    if (!roomSocketIds) {
-      return null;
-    }
-
-    for (const socketId of roomSocketIds) {
-      const roomSocket = io.sockets.sockets.get(socketId);
-
-      if (roomSocket?.data.username === username) {
-        return roomSocket;
+  async function findOnlineSocketByUsername(username, excludedSocketId = "") {
+    for (const candidateSocket of io.sockets.sockets.values()) {
+      if (candidateSocket.id === excludedSocketId || candidateSocket.data.voiceCallId) {
+        continue;
       }
+
+      const session = await getSocketSession(candidateSocket);
+
+      if (!session || session.isAdmin || session.username !== username) {
+        continue;
+      }
+
+      return candidateSocket;
     }
 
     return null;
@@ -98,7 +98,11 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
     const initialSession = await getSocketSession(socket);
     socket.emit("rooms_presence", {
       rooms: await presence.getRoomsWithPresence(initialSession),
+      onlineUsers: await presence.getOnlineUsers(),
     });
+    if (initialSession) {
+      await presence.emitRoomsPresence();
+    }
 
     socket.on("join_room", async ({ roomId }) => {
       const cleanRoomId = String(roomId || "").trim();
@@ -153,8 +157,6 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         return;
       }
 
-      await endVoiceCall(getSocketCall(socket), "left_room", socket.id);
-
       if (session.isAdmin) {
         socket.leave(cleanRoomId);
         socket.data.roomId = null;
@@ -177,7 +179,6 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         !targetUsername ||
         !session ||
         session.isAdmin ||
-        socket.data.roomId !== cleanRoomId ||
         !(await getRoom(cleanRoomId))
       ) {
         return;
@@ -201,7 +202,14 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
         return;
       }
 
-      const targetSocket = findRoomSocketByUsername(cleanRoomId, targetUsername);
+      if (socket.data.voiceCallId) {
+        socket.emit("voice_call_error", {
+          message: "You are already in a call. / ä½ å·²ç»åœ¨é€šè¯ä¸­ã€‚",
+        });
+        return;
+      }
+
+      const targetSocket = await findOnlineSocketByUsername(targetUsername, socket.id);
 
       if (!targetSocket) {
         socket.emit("voice_call_error", {
@@ -339,6 +347,7 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       }
 
       await presence.removeSocketPresence(socket, { announce: true });
+      await presence.emitRoomsPresence();
       console.log("User disconnected:", socket.id);
     });
   });

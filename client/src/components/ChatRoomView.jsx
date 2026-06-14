@@ -283,7 +283,7 @@ function ChatRoomView({
                     : `In call / 通话中: ${voiceCall.peer}`}
             </strong>
             <span>Type / 类型: {voiceCall.callType === "video" ? "Video / 视频" : "Voice / 语音"}</span>
-            <span>Only two people can be in a room call. / 每个房间同时只能两人通话。</span>
+            <span>Calls can continue outside a chat room.</span>
             {voiceCall.startedAt ? (
               <span className="voice-call-timer">
                 Duration / call time: {formatCallDuration(voiceCallElapsedSeconds)}

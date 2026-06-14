@@ -275,6 +275,7 @@ function registerRoomRoutes(app, {
       username: session.username,
       isAdmin: session.isAdmin,
       rooms,
+      onlineUsers: await presence.getOnlineUsers(),
     });
   });
 

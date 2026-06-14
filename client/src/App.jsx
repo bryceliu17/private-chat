@@ -71,6 +71,7 @@ function App() {
   const [callChoiceUser, setCallChoiceUser] = useState("");
   const [voiceCallElapsedSeconds, setVoiceCallElapsedSeconds] = useState(0);
   const [voiceCallError, setVoiceCallError] = useState("");
+  const [onlineUsers, setOnlineUsers] = useState([]);
 
   const [rooms, setRooms] = useState([]);
   const [roomId, setRoomId] = useState("");
@@ -79,6 +80,7 @@ function App() {
 
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
+  const [callChoiceRoomId, setCallChoiceRoomId] = useState("");
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
@@ -110,6 +112,7 @@ function App() {
     setUsername(data.username);
     setIsAdmin(Boolean(data.isAdmin));
     setRooms(data.rooms);
+    setOnlineUsers(data.onlineUsers || []);
     setIsLoggedIn(true);
   };
 
@@ -149,6 +152,7 @@ function App() {
         setUsername(data.username);
         setIsAdmin(Boolean(data.isAdmin));
         setRooms(data.rooms);
+        setOnlineUsers(data.onlineUsers || []);
         setIsLoggedIn(true);
 
         if (data.isAdmin) {
@@ -173,6 +177,7 @@ function App() {
         setUsername("");
         setIsAdmin(false);
         setRooms([]);
+        setOnlineUsers([]);
         setAdminUsers([]);
         setIsLoggedIn(false);
       }
@@ -355,6 +360,7 @@ function App() {
       status: "idle",
     });
     setCallChoiceUser("");
+    setCallChoiceRoomId("");
     setVoiceCallElapsedSeconds(0);
   }
 
@@ -510,7 +516,11 @@ function App() {
       ]);
     });
 
-    socket.on("rooms_presence", ({ rooms: updatedRooms }) => {
+    socket.on("rooms_presence", ({ rooms: updatedRooms, onlineUsers: updatedOnlineUsers }) => {
+      if (Array.isArray(updatedOnlineUsers)) {
+        setOnlineUsers(updatedOnlineUsers);
+      }
+
       setRooms((prevRooms) => {
         if (!Array.isArray(updatedRooms)) {
           return prevRooms;
@@ -809,16 +819,10 @@ function App() {
     setRoomId(targetRoomId);
     setJoined(true);
     setCallChoiceUser("");
+    setCallChoiceRoomId("");
   };
 
   const leaveRoom = () => {
-    if (voiceCallRef.current.callId) {
-      socket.emit("voice_call_hangup", {
-        callId: voiceCallRef.current.callId,
-      });
-      resetVoiceCall();
-    }
-
     socket.emit("leave_room", {
       roomId,
     });
@@ -830,14 +834,16 @@ function App() {
     setMessages([]);
     setImageUploadError("");
     setCallChoiceUser("");
+    setCallChoiceRoomId("");
   };
 
-  const openCallChoice = (targetUsername) => {
+  const openCallChoice = (targetUsername, targetRoomId = roomId) => {
     if (voiceCallRef.current.status !== "idle") {
       setVoiceCallError("You are already in a voice call. / 你已经在通话中。");
       return;
     }
 
+    setCallChoiceRoomId(targetRoomId);
     setCallChoiceUser(targetUsername);
   };
 
@@ -849,9 +855,10 @@ function App() {
 
     setVoiceCallError("");
     setCallChoiceUser("");
+    setCallChoiceRoomId("");
     socket.emit("voice_call_request", {
       callType,
-      roomId,
+      roomId: callChoiceRoomId || roomId,
       to: targetUsername,
     });
   };
@@ -909,6 +916,13 @@ function App() {
   };
 
   const logout = async () => {
+    if (voiceCallRef.current.callId) {
+      socket.emit("voice_call_hangup", {
+        callId: voiceCallRef.current.callId,
+      });
+      resetVoiceCall();
+    }
+
     if (joined) {
       leaveRoom();
     }
@@ -926,6 +940,7 @@ function App() {
     setMfaCode("");
     setIsLoggedIn(false);
     setRooms([]);
+    setOnlineUsers([]);
     setAdminUsers([]);
     setImageUploadError("");
     setRoomNotice("");
@@ -1505,23 +1520,37 @@ function App() {
   if (!joined) {
     return (
       <RoomListView
+        acceptVoiceCall={acceptVoiceCall}
         adminMessage={adminMessage}
         adminUsers={adminUsers}
+        callChoiceUser={callChoiceUser}
         enterRoom={enterRoom}
+        hangupVoiceCall={hangupVoiceCall}
         isAdmin={isAdmin}
         loadAdminUsers={loadAdminUsers}
+        localVideoRef={localVideoRef}
         logout={logout}
+        onlineUsers={onlineUsers}
+        openCallChoice={openCallChoice}
+        rejectVoiceCall={rejectVoiceCall}
+        remoteAudioRef={remoteAudioRef}
+        remoteVideoRef={remoteVideoRef}
         roomNotice={roomNotice}
         rooms={rooms}
         savingMfaUserId={savingMfaUserId}
         savingPasswordUserId={savingPasswordUserId}
         savingUserId={savingUserId}
         setAdminUsers={setAdminUsers}
+        setCallChoiceUser={setCallChoiceUser}
         startSupportPayment={startSupportPayment}
+        startVoiceCall={startVoiceCall}
         updateAdminUserEmail={updateAdminUserEmail}
         updateAdminUserMfa={updateAdminUserMfa}
         updateAdminUserPassword={updateAdminUserPassword}
         username={username}
+        voiceCall={voiceCall}
+        voiceCallElapsedSeconds={voiceCallElapsedSeconds}
+        voiceCallError={voiceCallError}
       />
     );
   }

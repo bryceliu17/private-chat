@@ -469,6 +469,33 @@ body {
   opacity: 0.55;
 }
 
+.global-call-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.global-call-row .inline-call-button {
+  gap: 6px;
+  width: auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+}
+
+.global-call-row .inline-call-button span {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .voice-user-list {
   display: flex;
   flex-wrap: wrap;

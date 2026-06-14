@@ -45,12 +45,39 @@ function createPresence(io) {
     );
   }
 
+  async function getOnlineUsers() {
+    if (!resolveSocketSession) {
+      const users = [];
+
+      for (const roomUsers of roomPresence.values()) {
+        users.push(...roomUsers.values());
+      }
+
+      return Array.from(new Set(users)).sort((a, b) => a.localeCompare(b));
+    }
+
+    const users = [];
+
+    for (const socket of io.sockets.sockets.values()) {
+      const session = await resolveSocketSession(socket);
+
+      if (session && !session.isAdmin) {
+        users.push(session.username);
+      }
+    }
+
+    return Array.from(new Set(users)).sort((a, b) => a.localeCompare(b));
+  }
+
   async function emitRoomsPresence() {
     if (resolveSocketSession) {
+      const onlineUsers = await getOnlineUsers();
+
       for (const socket of io.sockets.sockets.values()) {
         const session = await resolveSocketSession(socket);
         socket.emit("rooms_presence", {
           rooms: await getRoomsWithPresence(session),
+          onlineUsers,
         });
       }
 
@@ -59,6 +86,7 @@ function createPresence(io) {
 
     io.emit("rooms_presence", {
       rooms: await getRoomsWithPresence(),
+      onlineUsers: await getOnlineUsers(),
     });
   }
 
@@ -160,6 +188,7 @@ function createPresence(io) {
   return {
     addSocketToRoom,
     emitRoomsPresence,
+    getOnlineUsers,
     getRoomsWithPresence,
     removeSocketPresence,
     removeUserFromOtherRooms,
