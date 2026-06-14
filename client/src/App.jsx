@@ -89,6 +89,7 @@ function App() {
   const messageInputRef = useRef(null);
   const messageListRef = useRef(null);
   const localVoiceStreamRef = useRef(null);
+  const remoteVoiceStreamRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -339,6 +340,7 @@ function App() {
   function closePeerConnection() {
     peerConnectionRef.current?.close();
     peerConnectionRef.current = null;
+    remoteVoiceStreamRef.current = null;
 
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
@@ -364,8 +366,27 @@ function App() {
     setVoiceCallElapsedSeconds(0);
   }
 
+  function attachVoiceMediaStreams(callType = voiceCallRef.current.callType) {
+    if (localVideoRef.current && callType === "video") {
+      localVideoRef.current.srcObject = localVoiceStreamRef.current;
+      localVideoRef.current.play().catch(() => {});
+    }
+
+    if (remoteVideoRef.current && callType === "video") {
+      remoteVideoRef.current.srcObject = remoteVoiceStreamRef.current;
+      remoteVideoRef.current.play().catch(() => {});
+      return;
+    }
+
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = remoteVoiceStreamRef.current;
+      remoteAudioRef.current.play().catch(() => {});
+    }
+  }
+
   async function getLocalVoiceStream(callType = "audio") {
     if (localVoiceStreamRef.current) {
+      attachVoiceMediaStreams(callType);
       return localVoiceStreamRef.current;
     }
 
@@ -379,11 +400,7 @@ function App() {
     });
 
     localVoiceStreamRef.current = stream;
-
-    if (localVideoRef.current && callType === "video") {
-      localVideoRef.current.srcObject = stream;
-      localVideoRef.current.play().catch(() => {});
-    }
+    attachVoiceMediaStreams(callType);
 
     return stream;
   }
@@ -405,16 +422,8 @@ function App() {
     });
 
     peerConnection.ontrack = (event) => {
-      if (remoteVideoRef.current && callType === "video") {
-        remoteVideoRef.current.srcObject = event.streams[0];
-        remoteVideoRef.current.play().catch(() => {});
-        return;
-      }
-
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = event.streams[0];
-        remoteAudioRef.current.play().catch(() => {});
-      }
+      remoteVoiceStreamRef.current = event.streams[0];
+      attachVoiceMediaStreams(callType);
     };
 
     peerConnection.onicecandidate = (event) => {
@@ -670,6 +679,14 @@ function App() {
 
     return () => window.clearInterval(timer);
   }, [voiceCall.startedAt, voiceCall.status]);
+
+  useEffect(() => {
+    if (voiceCall.status === "idle") {
+      return;
+    }
+
+    attachVoiceMediaStreams(voiceCall.callType);
+  }, [joined, voiceCall.callType, voiceCall.status]);
 
   useEffect(() => {
     messageListRef.current?.scrollTo({
