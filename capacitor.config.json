@@ -1,0 +1,5 @@
+{
+  "appId": "com.bryceliu.privatechat",
+  "appName": "Private Chat",
+  "webDir": "client/dist"
+}

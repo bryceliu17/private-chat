@@ -8,6 +8,7 @@ const {
   LOGIN_WINDOW_MS,
   MFA_CODE_MAX_AGE_MS,
   SESSION_COOKIE,
+  SESSION_COOKIE_SAME_SITE,
   SESSION_COOKIE_SECURE,
   SESSION_MAX_AGE_MS,
 } = require("./config");
@@ -46,7 +47,7 @@ async function createSession(res, user) {
 
   res.cookie(SESSION_COOKIE, sessionId, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: SESSION_COOKIE_SAME_SITE,
     secure: SESSION_COOKIE_SECURE,
     maxAge,
   });
@@ -383,7 +384,7 @@ function registerAuthRoutes(app) {
 
     res.clearCookie(SESSION_COOKIE, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: SESSION_COOKIE_SAME_SITE,
       secure: SESSION_COOKIE_SECURE,
     });
 

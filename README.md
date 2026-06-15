@@ -111,11 +111,53 @@ Build frontend:
 npm.cmd --prefix client run build
 ```
 
+## Android App
+
+The Android app is a Capacitor shell around the existing React client.
+
+Before building an APK, create a local client env file:
+
+```text
+client/.env
+```
+
+Set the production API origin:
+
+```text
+VITE_API_URL=https://your-domain.example
+```
+
+Then build and sync Android:
+
+```powershell
+npm.cmd run android:sync
+```
+
+Build a debug APK:
+
+```powershell
+npm.cmd run android:build:debug
+```
+
+The debug APK is written under:
+
+```text
+android/app/build/outputs/apk/debug/
+```
+
+Do not commit APK/AAB files or Android signing keystores. Production app logins from Capacitor require the server to allow the Capacitor origin and use cross-site cookies:
+
+```text
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_SAME_SITE=none
+```
+
 Recommended production `.env` values:
 
 ```text
 PUBLIC_ORIGIN=https://your-domain.example
 SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_SAME_SITE=none
 REQUEST_BODY_LIMIT=200mb
 STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
 STRIPE_WEBHOOK_SECRET=whsec_your-stripe-webhook-secret

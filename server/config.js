@@ -5,6 +5,7 @@ require("dotenv").config({
 });
 
 const LOCAL_CLIENT_ORIGINS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const CAPACITOR_CLIENT_ORIGINS = new Set(["capacitor://localhost", "ionic://localhost"]);
 const LAN_CLIENT_HOST_PATTERN =
   /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})$/;
 
@@ -17,6 +18,10 @@ const SUPPORT_AMOUNT_CENTS = Number(process.env.SUPPORT_AMOUNT_CENTS || 500);
 const SUPPORT_CURRENCY = process.env.SUPPORT_CURRENCY || "aud";
 
 function isAllowedClientOrigin(origin) {
+  if (CAPACITOR_CLIENT_ORIGINS.has(origin)) {
+    return true;
+  }
+
   try {
     const url = new URL(origin);
     const isLocalOrLanHost =
@@ -72,6 +77,7 @@ module.exports = {
   PORT: 5001,
   ADMIN_SESSION_MAX_AGE_MS: 1000 * 60 * 10,
   SESSION_COOKIE: "private_chat_session",
+  SESSION_COOKIE_SAME_SITE: process.env.SESSION_COOKIE_SAME_SITE || "lax",
   SESSION_COOKIE_SECURE: process.env.SESSION_COOKIE_SECURE === "true",
   SESSION_MAX_AGE_MS: 1000 * 60 * 60 * 24 * 30,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || "",

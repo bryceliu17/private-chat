@@ -8,9 +8,17 @@
     "dev:client": "npm --prefix client run dev",
     "start": "concurrently -n server,client -c green,cyan \"npm run start:server\" \"npm run start:client\"",
     "start:server": "npm --prefix server start",
-    "start:client": "npm --prefix client run preview"
+    "start:client": "npm --prefix client run preview",
+    "android:sync": "npm --prefix client run build && cap sync android",
+    "android:open": "cap open android",
+    "android:build:debug": "npm --prefix client run build && cap sync android && cd android && gradlew.bat assembleDebug"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.0",
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/core": "^8.4.0"
   }
 }

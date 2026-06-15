@@ -7,7 +7,7 @@ import "./App.css";
 
 const API_URL = import.meta.env.DEV
   ? `${window.location.protocol}//${window.location.hostname}:5001`
-  : window.location.origin;
+  : (import.meta.env.VITE_API_URL || window.location.origin).replace(/\/+$/, "");
 const LAST_ROOM_ID_KEY = "private-chat:last-room-id";
 const socket = io(API_URL, {
   withCredentials: true,
