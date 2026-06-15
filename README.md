@@ -145,6 +145,32 @@ The debug APK is written under:
 android/app/build/outputs/apk/debug/
 ```
 
+### Android push notifications
+
+Android system notifications use Firebase Cloud Messaging through the Capacitor Push Notifications plugin.
+
+In Firebase Console:
+
+1. Create or open a Firebase project.
+2. Add an Android app with package name `com.bryceliu.privatechat`.
+3. Download `google-services.json`.
+4. Put it at:
+
+```text
+android/app/google-services.json
+```
+
+Do not commit `google-services.json`.
+
+On the server, create a Firebase service account JSON and configure one of:
+
+```text
+FIREBASE_SERVICE_ACCOUNT_PATH=/opt/private-chat/firebase-service-account.json
+FIREBASE_SERVICE_ACCOUNT_JSON=
+```
+
+Use `FIREBASE_SERVICE_ACCOUNT_PATH` when the JSON file is stored on the server. Use `FIREBASE_SERVICE_ACCOUNT_JSON` only when your deployment system can safely store multi-line secrets.
+
 Do not commit APK/AAB files or Android signing keystores. Production app logins from Capacitor require the server to allow the Capacitor origin and use cross-site cookies:
 
 ```text
@@ -163,6 +189,7 @@ STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
 STRIPE_WEBHOOK_SECRET=whsec_your-stripe-webhook-secret
 SUPPORT_AMOUNT_CENTS=500
 SUPPORT_CURRENCY=aud
+FIREBASE_SERVICE_ACCOUNT_PATH=/opt/private-chat/firebase-service-account.json
 MESSAGE_ENCRYPTION_KEY=your-existing-key
 ```
 

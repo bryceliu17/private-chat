@@ -5,6 +5,7 @@ const {
   markActiveRoomUsersRead,
   markRoomRead,
 } = require("./messages");
+const { sendPushToRoom } = require("./pushNotifications");
 
 function registerSocketHandlers(io, { getSocketSession, presence }) {
   const roomCalls = new Map();
@@ -334,6 +335,9 @@ function registerSocketHandlers(io, { getSocketSession, presence }) {
       });
 
       io.to(cleanRoomId).emit("receive_message", message);
+      sendPushToRoom(cleanRoomId, session, message).catch((error) => {
+        console.error("Failed to send push notification:", error);
+      });
       await markActiveRoomUsersRead(io, getSocketSession, cleanRoomId, message.createdAt);
       await presence.emitRoomsPresence();
     });

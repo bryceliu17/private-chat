@@ -1,5 +1,10 @@
 {
   "appId": "com.bryceliu.privatechat",
   "appName": "Private Chat",
-  "webDir": "client/dist"
+  "webDir": "client/dist",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
 }

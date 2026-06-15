@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { io } from "socket.io-client";
 import ChatRoomView from "./components/ChatRoomView";
 import LoginView from "./components/LoginView";
@@ -9,6 +10,7 @@ const API_URL = import.meta.env.DEV
   ? `${window.location.protocol}//${window.location.hostname}:5001`
   : (import.meta.env.VITE_API_URL || window.location.origin).replace(/\/+$/, "");
 const LAST_ROOM_ID_KEY = "private-chat:last-room-id";
+const PUSH_TOKEN_KEY = "private-chat:push-token";
 const socket = io(API_URL, {
   withCredentials: true,
 });
@@ -34,6 +36,30 @@ function clearLastRoomId() {
     window.localStorage.removeItem(LAST_ROOM_ID_KEY);
   } catch {
     // Ignore storage failures; the in-memory room state is still cleared.
+  }
+}
+
+function savePushToken(token) {
+  try {
+    window.localStorage.setItem(PUSH_TOKEN_KEY, token);
+  } catch {
+    // Ignore storage failures; the backend still receives the token.
+  }
+}
+
+function readPushToken() {
+  try {
+    return window.localStorage.getItem(PUSH_TOKEN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function clearPushToken() {
+  try {
+    window.localStorage.removeItem(PUSH_TOKEN_KEY);
+  } catch {
+    // Ignore storage failures; logout still proceeds.
   }
 }
 
@@ -99,6 +125,8 @@ function App() {
   const ringtoneGainRef = useRef(null);
   const ringtoneIntervalRef = useRef(null);
   const ringtoneUnlockedRef = useRef(false);
+  const pushTokenRef = useRef(readPushToken());
+  const roomsRef = useRef(rooms);
 
   const loadRooms = async () => {
     const response = await fetch(`${API_URL}/api/rooms`, {
@@ -190,6 +218,106 @@ function App() {
   useEffect(() => {
     voiceCallRef.current = voiceCall;
   }, [voiceCall]);
+
+  useEffect(() => {
+    roomsRef.current = rooms;
+  }, [rooms]);
+
+  useEffect(() => {
+    if (!isLoggedIn || isAdmin || !Capacitor.isNativePlatform()) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const listenerHandles = [];
+
+    async function registerPushNotifications() {
+      try {
+        const { PushNotifications } = await import("@capacitor/push-notifications");
+
+        listenerHandles.push(
+          await PushNotifications.addListener("registration", async (token) => {
+            if (cancelled || !token.value) {
+              return;
+            }
+
+            pushTokenRef.current = token.value;
+            savePushToken(token.value);
+
+            await fetch(`${API_URL}/api/push-tokens`, {
+              method: "POST",
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                token: token.value,
+                platform: Capacitor.getPlatform(),
+              }),
+            });
+          })
+        );
+
+        listenerHandles.push(
+          await PushNotifications.addListener("registrationError", (error) => {
+            console.warn("Push registration failed:", error);
+          })
+        );
+
+        listenerHandles.push(
+          await PushNotifications.addListener("pushNotificationActionPerformed", (event) => {
+            const targetRoomId = event.notification?.data?.roomId;
+
+            if (!targetRoomId) {
+              return;
+            }
+
+            saveLastRoomId(targetRoomId);
+
+            if ((roomsRef.current || []).some((room) => room.id === targetRoomId)) {
+              socket.emit("join_room", {
+                roomId: targetRoomId,
+              });
+              setRoomId(targetRoomId);
+              setJoined(true);
+              setCallChoiceUser("");
+              setRoomNotice("");
+            }
+          })
+        );
+
+        await PushNotifications.createChannel({
+          id: "messages",
+          name: "Messages",
+          description: "Chat message notifications",
+          importance: 4,
+          visibility: 1,
+          sound: "default",
+        });
+
+        let permission = await PushNotifications.checkPermissions();
+
+        if (permission.receive === "prompt") {
+          permission = await PushNotifications.requestPermissions();
+        }
+
+        if (permission.receive === "granted") {
+          await PushNotifications.register();
+        }
+      } catch (error) {
+        console.warn("Cannot enable push notifications:", error);
+      }
+    }
+
+    registerPushNotifications();
+
+    return () => {
+      cancelled = true;
+      listenerHandles.forEach((handle) => {
+        handle.remove();
+      });
+    };
+  }, [isAdmin, isLoggedIn]);
 
   function ensureRingtoneContext() {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -942,6 +1070,23 @@ function App() {
 
     if (joined) {
       leaveRoom();
+    }
+
+    const pushToken = pushTokenRef.current;
+
+    if (pushToken) {
+      await fetch(`${API_URL}/api/push-tokens`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token: pushToken,
+        }),
+      }).catch(() => {});
+      pushTokenRef.current = "";
+      clearPushToken();
     }
 
     await fetch(`${API_URL}/api/logout`, {

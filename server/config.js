@@ -16,6 +16,8 @@ const FILE_UPLOAD_DIR = path.join(UPLOAD_DIR, "files");
 const VIDEO_UPLOAD_DIR = path.join(UPLOAD_DIR, "videos");
 const SUPPORT_AMOUNT_CENTS = Number(process.env.SUPPORT_AMOUNT_CENTS || 500);
 const SUPPORT_CURRENCY = process.env.SUPPORT_CURRENCY || "aud";
+const FIREBASE_SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
+const FIREBASE_SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH || "";
 
 function isAllowedClientOrigin(origin) {
   if (CAPACITOR_CLIENT_ORIGINS.has(origin)) {
@@ -70,6 +72,8 @@ module.exports = {
   LOGIN_WINDOW_MS: 1000 * 60 * 10,
   FILE_ENCRYPTION_KEY: process.env.FILE_ENCRYPTION_KEY || "",
   FILE_UPLOAD_DIR,
+  FIREBASE_SERVICE_ACCOUNT_JSON,
+  FIREBASE_SERVICE_ACCOUNT_PATH,
   MESSAGE_ENCRYPTION_KEY: process.env.MESSAGE_ENCRYPTION_KEY || "",
   MFA_CODE_MAX_AGE_MS: 1000 * 60 * 10,
   MFA_ENABLED: false,

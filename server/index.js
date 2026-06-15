@@ -13,6 +13,7 @@ const {
 const { registerRoomRoutes } = require("./messages");
 const { registerPaymentRoutes, registerPaymentWebhookRoute } = require("./payments");
 const { createPresence } = require("./presence");
+const { registerPushRoutes } = require("./pushNotifications");
 const { registerStorageRoutes } = require("./storage");
 const { registerSocketHandlers } = require("./sockets");
 
@@ -47,6 +48,10 @@ presence.setSocketSessionResolver(getSocketSession);
 
 registerAuthRoutes(app);
 registerStorageRoutes(app, {
+  requireSession,
+});
+registerPushRoutes(app, {
+  requireChatUser,
   requireSession,
 });
 registerPaymentRoutes(app, {

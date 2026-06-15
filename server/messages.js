@@ -6,6 +6,7 @@ const {
   getClientFileUrl,
   saveLocalEncryptedUpload,
 } = require("./storage");
+const { sendPushToRoom } = require("./pushNotifications");
 
 async function getRoom(roomId) {
   return db.get("SELECT id, name FROM rooms WHERE id = $1", [roomId]);
@@ -158,6 +159,12 @@ async function deleteUploadedFilesForMessages(messages) {
       deleteLocalUpload(url);
     }
   }
+}
+
+function sendRoomPushNotification(roomId, session, message) {
+  sendPushToRoom(roomId, session, message).catch((error) => {
+    console.error("Failed to send push notification:", error);
+  });
 }
 
 async function saveUpload({ kind, roomId, filename, buffer, contentType }) {
@@ -347,6 +354,7 @@ function registerRoomRoutes(app, {
     }
 
     io.to(roomId).emit("receive_message", message);
+    sendRoomPushNotification(roomId, session, message);
     await markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
     await presence.emitRoomsPresence();
 
@@ -419,6 +427,7 @@ function registerRoomRoutes(app, {
     }
 
     io.to(roomId).emit("receive_message", message);
+    sendRoomPushNotification(roomId, session, message);
     await markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
     await presence.emitRoomsPresence();
 
@@ -491,6 +500,7 @@ function registerRoomRoutes(app, {
     }
 
     io.to(roomId).emit("receive_message", message);
+    sendRoomPushNotification(roomId, session, message);
     await markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
     await presence.emitRoomsPresence();
 
@@ -563,6 +573,7 @@ function registerRoomRoutes(app, {
     }
 
     io.to(roomId).emit("receive_message", message);
+    sendRoomPushNotification(roomId, session, message);
     await markActiveRoomUsersRead(io, getSocketSession, roomId, createdAt);
     await presence.emitRoomsPresence();
 
