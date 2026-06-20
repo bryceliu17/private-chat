@@ -19,6 +19,7 @@ function IconEyeOff() {
 }
 
 function LoginView({
+  apkDownloadUrl,
   isLoggingIn,
   login,
   loginError,
@@ -95,6 +96,12 @@ function LoginView({
               ? "Verify / 验证"
               : "Login / 登录"}
         </button>
+
+        {apkDownloadUrl && (
+          <a className="apk-download-link login-download-link" href={apkDownloadUrl} download>
+            Download Android app / 下载安卓应用
+          </a>
+        )}
       </div>
     </div>
   );

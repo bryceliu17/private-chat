@@ -11,6 +11,7 @@ const API_URL = import.meta.env.DEV
   : (import.meta.env.VITE_API_URL || window.location.origin).replace(/\/+$/, "");
 const LAST_ROOM_ID_KEY = "private-chat:last-room-id";
 const PUSH_TOKEN_KEY = "private-chat:push-token";
+const APK_DOWNLOAD_URL = `${API_URL}/api/downloads/android`;
 const socket = io(API_URL, {
   withCredentials: true,
 });
@@ -1662,6 +1663,7 @@ function App() {
   if (!isLoggedIn) {
     return (
       <LoginView
+        apkDownloadUrl={Capacitor.isNativePlatform() ? "" : APK_DOWNLOAD_URL}
         isLoggingIn={isLoggingIn}
         login={login}
         loginError={loginError}
@@ -1685,6 +1687,7 @@ function App() {
         acceptVoiceCall={acceptVoiceCall}
         adminMessage={adminMessage}
         adminUsers={adminUsers}
+        apkDownloadUrl={Capacitor.isNativePlatform() ? "" : APK_DOWNLOAD_URL}
         callChoiceUser={callChoiceUser}
         enterRoom={enterRoom}
         hangupVoiceCall={hangupVoiceCall}

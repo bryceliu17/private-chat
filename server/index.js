@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const { PORT, REQUEST_BODY_LIMIT, isAllowedClientOrigin } = require("./config");
@@ -34,6 +35,10 @@ const app = express();
 app.use(cors(corsOptions));
 registerPaymentWebhookRoute(app);
 app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+
+app.get("/api/downloads/android", (req, res) => {
+  res.download(path.join(__dirname, "downloads", "private-chat.apk"), "private-chat.apk");
+});
 
 const server = http.createServer(app);
 const io = new Server(server, {

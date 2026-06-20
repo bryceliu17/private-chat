@@ -29,6 +29,7 @@ function RoomListView({
   acceptVoiceCall,
   adminMessage,
   adminUsers,
+  apkDownloadUrl,
   callChoiceUser,
   enterRoom,
   hangupVoiceCall,
@@ -87,6 +88,11 @@ function RoomListView({
 
           <div className="header-actions">
             <div className="current-user">Current user / 当前用户: {username}</div>
+            {apkDownloadUrl && (
+              <a className="apk-download-link" href={apkDownloadUrl} download>
+                Download Android app / 下载安卓应用
+              </a>
+            )}
             <button className="support-button" onClick={startSupportPayment}>
               Support / 打赏
             </button>
