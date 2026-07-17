@@ -562,7 +562,7 @@ body {
 .records-table {
   border-collapse: collapse;
   font-size: 14px;
-  min-width: 920px;
+  min-width: 1040px;
   width: 100%;
 }
 
@@ -1779,6 +1779,6 @@ body {
 
   .records-table {
     font-size: 13px;
-    min-width: 860px;
+    min-width: 980px;
   }
 }

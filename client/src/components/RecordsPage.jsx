@@ -114,6 +114,7 @@ function RecordsPage() {
                   <th>Game / 游戏</th>
                   <th>IP</th>
                   <th>Location / 所属地</th>
+                  <th>Browser / 浏览器</th>
                   <th>GPS / 浏览器定位</th>
                   <th>Time / 时间</th>
                 </tr>
@@ -125,6 +126,7 @@ function RecordsPage() {
                     <td>{record.game}</td>
                     <td>{record.ipAddress}</td>
                     <td>{record.ipLocation}</td>
+                    <td title={record.userAgent || ""}>{record.browser || "Unknown"}</td>
                     <td>{formatBrowserLocation(record)}</td>
                     <td>{formatRecordTime(record.createdAt)}</td>
                   </tr>

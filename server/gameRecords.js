@@ -139,6 +139,8 @@ async function lookupIpLocation(ipAddress) {
 }
 
 function serializeRecord(row) {
+  const userAgent = row.user_agent || "";
+
   return {
     id: row.id,
     game: row.game,
@@ -149,9 +151,48 @@ function serializeRecord(row) {
     longitude: row.longitude,
     locationAccuracy: row.location_accuracy,
     locationRecordedAt: row.location_recorded_at,
-    userAgent: row.user_agent || "",
+    browser: parseBrowser(userAgent),
+    userAgent,
     createdAt: row.created_at,
   };
+}
+
+function parseBrowser(userAgent) {
+  const text = String(userAgent || "");
+
+  if (!text) {
+    return "Unknown";
+  }
+
+  if (text.includes("MicroMessenger")) {
+    return "WeChat / 微信";
+  }
+
+  if (text.includes("Edg/")) {
+    return "Edge";
+  }
+
+  if (text.includes("OPR/") || text.includes("Opera")) {
+    return "Opera";
+  }
+
+  if (text.includes("Firefox/")) {
+    return "Firefox";
+  }
+
+  if (text.includes("SamsungBrowser/")) {
+    return "Samsung Internet";
+  }
+
+  if (text.includes("Chrome/") || text.includes("CriOS/")) {
+    return "Chrome";
+  }
+
+  if (text.includes("Safari/")) {
+    return "Safari";
+  }
+
+  return "Unknown";
 }
 
 function readCoordinate(value, min, max) {
