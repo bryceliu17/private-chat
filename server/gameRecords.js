@@ -215,6 +215,16 @@ function readAccuracy(value) {
   return accuracy;
 }
 
+function readRecordIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [...new Set(value.map(Number))]
+    .filter((id) => Number.isInteger(id) && id > 0)
+    .slice(0, 200);
+}
+
 function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
   app.post("/api/game-records/tetris", async (req, res) => {
     await ensureGameRecordSchema();
@@ -305,6 +315,31 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
 
     return res.json({
       records: records.map(serializeRecord),
+    });
+  });
+
+  app.delete("/api/game-records", async (req, res) => {
+    const session = await requireSession(req, res);
+
+    if (!session) {
+      return;
+    }
+
+    await ensureGameRecordSchema();
+
+    const ids = readRecordIds(req.body?.ids);
+
+    if (!ids.length) {
+      return res.status(400).json({
+        message: "No records selected / 未选择记录",
+      });
+    }
+
+    const result = await db.run("DELETE FROM game_records WHERE id = ANY($1::bigint[])", [ids]);
+
+    return res.json({
+      deletedCount: result.rowCount,
+      ok: true,
     });
   });
 }
