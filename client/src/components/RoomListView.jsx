@@ -96,7 +96,7 @@ function RoomListView({
             <a className="records-button" href="/records">
               Records / 访问记录
             </a>
-            <a className="game-entry-link" href="/tetris">
+            <a className="game-entry-link" href="/tetris/">
               Tetris / 俄罗斯方块
             </a>
             <button className="support-button" onClick={startSupportPayment}>

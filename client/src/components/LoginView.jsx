@@ -103,7 +103,7 @@ function LoginView({
           </a>
         )}
 
-        <a className="game-entry-link login-game-link" href="/tetris">
+        <a className="game-entry-link login-game-link" href="/tetris/">
           Tetris / 俄罗斯方块
         </a>
       </div>

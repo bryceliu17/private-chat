@@ -84,7 +84,7 @@ function RecordsPage() {
             </a>
             <h1>Records / 访问记录</h1>
           </div>
-          <a className="records-game-link" href="/tetris">
+          <a className="records-game-link" href="/tetris/">
             Tetris / 俄罗斯方块
           </a>
         </div>
