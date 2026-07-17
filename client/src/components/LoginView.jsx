@@ -102,6 +102,10 @@ function LoginView({
             Download Android app / 下载安卓应用
           </a>
         )}
+
+        <a className="game-entry-link login-game-link" href="/tetris">
+          Tetris / 俄罗斯方块
+        </a>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const { PORT, REQUEST_BODY_LIMIT, isAllowedClientOrigin } = require("./config");
 const {
+  getRequestSession,
   getSocketSession,
   registerAuthRoutes,
   requireAdmin,
@@ -14,6 +15,7 @@ const {
 const { registerRoomRoutes } = require("./messages");
 const { registerPaymentRoutes, registerPaymentWebhookRoute } = require("./payments");
 const { createPresence } = require("./presence");
+const { registerGameRecordRoutes } = require("./gameRecords");
 const { registerPushRoutes } = require("./pushNotifications");
 const { registerStorageRoutes } = require("./storage");
 const { registerSocketHandlers } = require("./sockets");
@@ -57,6 +59,10 @@ registerStorageRoutes(app, {
 });
 registerPushRoutes(app, {
   requireChatUser,
+  requireSession,
+});
+registerGameRecordRoutes(app, {
+  getRequestSession,
   requireSession,
 });
 registerPaymentRoutes(app, {

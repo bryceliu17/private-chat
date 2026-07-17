@@ -118,10 +118,471 @@ body {
   text-align: center;
 }
 
+.login-game-link {
+  display: block;
+  margin-top: 12px;
+  text-align: center;
+}
+
 .login-error {
   margin: 0 0 12px;
   color: #c62828;
   font-size: 14px;
+}
+
+.snake-page {
+  align-items: center;
+  background:
+    radial-gradient(circle at 20% 12%, rgba(25, 195, 125, 0.14), transparent 30%),
+    linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.snake-shell {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  box-shadow: 0 18px 46px rgba(31, 35, 40, 0.12);
+  max-width: 560px;
+  padding: 20px;
+  width: min(100%, 560px);
+}
+
+.snake-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.snake-back-link {
+  color: #166534;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-decoration: none;
+}
+
+.snake-back-link:hover {
+  text-decoration: underline;
+}
+
+.snake-header h1 {
+  font-size: 28px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.snake-scoreboard {
+  align-items: flex-end;
+  color: #374151;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 4px;
+  min-width: 92px;
+  text-align: right;
+}
+
+.snake-speed-control {
+  align-items: center;
+  color: #374151;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 10px;
+  justify-content: flex-end;
+  margin: -4px 0 14px;
+}
+
+.snake-speed-control select {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #111827;
+  font: inherit;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.snake-board {
+  aspect-ratio: 1;
+  background: #101827;
+  border: 8px solid #1f2937;
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(20, 1fr);
+  touch-action: none;
+  user-select: none;
+  width: 100%;
+}
+
+.snake-cell {
+  background: #172033;
+  border-radius: 3px;
+  min-width: 0;
+}
+
+.snake-body,
+.snake-head {
+  background: #19c37d;
+}
+
+.snake-head {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.snake-food {
+  background: #ef4444;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.snake-footer {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.snake-status {
+  color: #374151;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.snake-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.snake-actions button,
+.snake-controls button {
+  background: #19c37d;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.snake-actions button {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.snake-controls {
+  align-items: center;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.snake-controls div {
+  display: flex;
+  gap: 8px;
+}
+
+.snake-controls button {
+  height: 48px;
+  padding: 0;
+  width: 56px;
+}
+
+.tetris-page {
+  align-items: center;
+  background:
+    radial-gradient(circle at 80% 12%, rgba(37, 99, 235, 0.16), transparent 28%),
+    linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 12px;
+}
+
+.tetris-shell {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  box-shadow: 0 18px 46px rgba(31, 35, 40, 0.12);
+  max-width: 640px;
+  padding: 14px;
+  width: min(100%, 640px);
+}
+
+.tetris-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.tetris-back-link {
+  color: #1d4ed8;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  text-decoration: none;
+}
+
+.tetris-back-link:hover {
+  text-decoration: underline;
+}
+
+.tetris-header h1 {
+  font-size: 24px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.tetris-scoreboard {
+  color: #374151;
+  display: grid;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 4px;
+  min-width: 116px;
+  text-align: right;
+}
+
+.tetris-layout {
+  align-items: flex-start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 300px) minmax(150px, 1fr);
+  justify-content: center;
+}
+
+.tetris-board {
+  aspect-ratio: 1 / 2;
+  background: #101827;
+  border: 8px solid #1f2937;
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(10, 1fr);
+  max-height: calc(100vh - 130px);
+  touch-action: none;
+  user-select: none;
+  width: min(100%, 300px);
+}
+
+.tetris-cell {
+  background: #172033;
+  border-radius: 3px;
+  min-width: 0;
+}
+
+.tetris-cyan {
+  background: #22d3ee;
+}
+
+.tetris-blue {
+  background: #2563eb;
+}
+
+.tetris-orange {
+  background: #f97316;
+}
+
+.tetris-yellow {
+  background: #facc15;
+}
+
+.tetris-green {
+  background: #22c55e;
+}
+
+.tetris-purple {
+  background: #a855f7;
+}
+
+.tetris-red {
+  background: #ef4444;
+}
+
+.tetris-side-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.tetris-panel-label,
+.tetris-status {
+  color: #374151;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.tetris-panel-label {
+  margin-bottom: 8px;
+}
+
+.tetris-next-piece {
+  background: #101827;
+  border: 6px solid #1f2937;
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(4, 1fr);
+  height: 96px;
+  padding: 6px;
+  width: 96px;
+}
+
+.tetris-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.tetris-key-help {
+  color: #4b5563;
+  display: grid;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 4px;
+  line-height: 1.25;
+}
+
+.tetris-actions button,
+.tetris-controls button {
+  background: #2563eb;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  min-height: 40px;
+  padding: 0 10px;
+}
+
+.tetris-controls {
+  display: none;
+  gap: 8px;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 16px;
+}
+
+.records-page {
+  align-items: flex-start;
+  background: #f8fafc;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.records-shell {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  box-shadow: 0 18px 46px rgba(31, 35, 40, 0.1);
+  max-width: 980px;
+  padding: 20px;
+  width: min(100%, 980px);
+}
+
+.records-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.records-back-link,
+.records-game-link {
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.records-back-link {
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+.records-back-link:hover,
+.records-game-link:hover {
+  text-decoration: underline;
+}
+
+.records-header h1 {
+  font-size: 24px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.records-message,
+.records-error {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.records-error {
+  color: #c62828;
+}
+
+.records-empty {
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.records-empty h2 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+.records-empty p {
+  color: #4b5563;
+  margin: 0 0 12px;
+}
+
+.records-empty a {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.records-table-wrap {
+  overflow-x: auto;
+}
+
+.records-table {
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 920px;
+  width: 100%;
+}
+
+.records-table th,
+.records-table td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 10px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.records-table th {
+  color: #374151;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.records-table td {
+  color: #111827;
+  overflow-wrap: anywhere;
 }
 
 .login-help {
@@ -721,6 +1182,36 @@ body {
   white-space: nowrap;
 }
 
+.records-button {
+  padding: 8px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.records-button:hover {
+  background: #dbeafe;
+}
+
+.game-entry-link {
+  padding: 8px 12px;
+  border: 1px solid #c4b5fd;
+  border-radius: 8px;
+  background: #f5f3ff;
+  color: #6d28d9;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.game-entry-link:hover {
+  background: #ede9fe;
+}
+
 .support-button:hover {
   background: #fef3c7;
 }
@@ -1132,5 +1623,162 @@ body {
 
   .chat-audio-message {
     min-width: min(260px, 74vw);
+  }
+
+  .snake-page {
+    padding: 12px;
+  }
+
+  .snake-shell {
+    padding: 14px;
+  }
+
+  .snake-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .snake-scoreboard {
+    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+    width: 100%;
+  }
+
+  .snake-speed-control {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+    justify-content: flex-start;
+    margin-top: 0;
+  }
+
+  .snake-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .snake-actions button {
+    flex: 1;
+  }
+
+  .snake-controls {
+    display: flex;
+  }
+
+  .tetris-page {
+    align-items: flex-start;
+    padding: 8px;
+  }
+
+  .tetris-shell {
+    padding: 10px;
+  }
+
+  .tetris-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .tetris-back-link {
+    margin-bottom: 2px;
+  }
+
+  .tetris-header h1 {
+    font-size: 20px;
+  }
+
+  .tetris-scoreboard {
+    font-size: 12px;
+    gap: 2px 8px;
+    grid-template-columns: repeat(2, 1fr);
+    text-align: left;
+  }
+
+  .tetris-layout {
+    gap: 8px;
+    grid-template-columns: 1fr;
+  }
+
+  .tetris-board {
+    max-height: 50vh;
+    width: min(100%, 260px);
+    justify-self: center;
+  }
+
+  .tetris-side-panel {
+    align-items: center;
+    gap: 8px;
+    grid-template-columns: auto 1fr;
+  }
+
+  .tetris-panel-label {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .tetris-next-piece {
+    border-width: 4px;
+    height: 66px;
+    padding: 4px;
+    width: 66px;
+  }
+
+  .tetris-status {
+    font-size: 12px;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .tetris-key-help {
+    display: none;
+  }
+
+  .tetris-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+  }
+
+  .tetris-actions button {
+    min-height: 34px;
+  }
+
+  .tetris-controls {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .tetris-controls button {
+    align-items: center;
+    display: inline-flex;
+    font-size: 20px;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0;
+  }
+
+  .records-page {
+    padding: 10px;
+  }
+
+  .records-shell {
+    padding: 12px;
+  }
+
+  .records-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .records-table {
+    font-size: 13px;
+    min-width: 860px;
   }
 }

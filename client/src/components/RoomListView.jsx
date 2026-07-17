@@ -93,6 +93,12 @@ function RoomListView({
                 Download Android app / 下载安卓应用
               </a>
             )}
+            <a className="records-button" href="/records">
+              Records / 访问记录
+            </a>
+            <a className="game-entry-link" href="/tetris">
+              Tetris / 俄罗斯方块
+            </a>
             <button className="support-button" onClick={startSupportPayment}>
               Support / 打赏
             </button>

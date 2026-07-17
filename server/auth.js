@@ -548,6 +548,7 @@ function registerAuthRoutes(app) {
 }
 
 module.exports = {
+  getRequestSession,
   getSocketSession,
   registerAuthRoutes,
   requireAdmin,
