@@ -47,6 +47,10 @@ function getRecordPhotoUrl(record) {
   return `${API_URL}${record.photoUrl}`;
 }
 
+function formatRecordSource(record) {
+  return record.source || record.sourceLabel || "Direct / Unknown";
+}
+
 function RecordsPage() {
   const [records, setRecords] = useState([]);
   const [selectedRecordIds, setSelectedRecordIds] = useState([]);
@@ -213,6 +217,7 @@ function RecordsPage() {
                     <th>User / 用户</th>
                     <th>IP</th>
                     <th>Location / 所属地</th>
+                    <th>Source / 来源</th>
                     <th>Browser / 浏览器</th>
                     <th>GPS / 浏览器定位</th>
                     <th>Photo / 照片</th>
@@ -233,6 +238,18 @@ function RecordsPage() {
                       <td>{record.username}</td>
                       <td>{record.ipAddress}</td>
                       <td>{record.ipLocation}</td>
+                      <td>
+                        {record.referrerUrl ? (
+                          <a
+                            className="records-source-link"
+                            href={record.referrerUrl}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            {formatRecordSource(record)}
+                          </a>
+                        ) : formatRecordSource(record)}
+                      </td>
                       <td title={record.userAgent || ""}>{record.browser || "Unknown"}</td>
                       <td>
                         {getGoogleMapsUrl(record) ? (

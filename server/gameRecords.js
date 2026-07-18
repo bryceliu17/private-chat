@@ -23,6 +23,8 @@ function ensureGameRecordSchema() {
         location_recorded_at bigint,
         photo_url text NOT NULL DEFAULT '',
         photo_recorded_at bigint,
+        source_label text NOT NULL DEFAULT '',
+        referrer_url text NOT NULL DEFAULT '',
         user_agent text NOT NULL DEFAULT '',
         created_at bigint NOT NULL
       )
@@ -33,7 +35,9 @@ function ensureGameRecordSchema() {
         ADD COLUMN IF NOT EXISTS location_accuracy double precision,
         ADD COLUMN IF NOT EXISTS location_recorded_at bigint,
         ADD COLUMN IF NOT EXISTS photo_url text NOT NULL DEFAULT '',
-        ADD COLUMN IF NOT EXISTS photo_recorded_at bigint
+        ADD COLUMN IF NOT EXISTS photo_recorded_at bigint,
+        ADD COLUMN IF NOT EXISTS source_label text NOT NULL DEFAULT '',
+        ADD COLUMN IF NOT EXISTS referrer_url text NOT NULL DEFAULT ''
     `)).then(() => db.run(`
       CREATE INDEX IF NOT EXISTS game_records_created_at_idx
       ON game_records(created_at DESC)
@@ -159,10 +163,28 @@ function serializeRecord(row) {
     locationRecordedAt: row.location_recorded_at,
     photoUrl: row.photo_url || "",
     photoRecordedAt: row.photo_recorded_at,
+    source: formatRecordSource(row.source_label, row.referrer_url),
+    sourceLabel: row.source_label || "",
+    referrerUrl: row.referrer_url || "",
     browser: parseBrowser(userAgent),
     userAgent,
     createdAt: row.created_at,
   };
+}
+
+function formatRecordSource(sourceLabel, referrerUrl) {
+  const label = String(sourceLabel || "").trim();
+
+  if (label) {
+    return label;
+  }
+
+  try {
+    const url = new URL(String(referrerUrl || ""));
+    return url.hostname || referrerUrl;
+  } catch {
+    return referrerUrl || "Direct / Unknown";
+  }
 }
 
 function parseBrowser(userAgent) {
@@ -256,6 +278,10 @@ function readPhotoDataUrl(value) {
   };
 }
 
+function readShortText(value, maxLength = 300) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
 function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
   app.post("/api/game-records/tetris", async (req, res) => {
     await ensureGameRecordSchema();
@@ -265,6 +291,8 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
     const createdAt = Date.now();
     const ipLocation = await lookupIpLocation(ipAddress);
     const userAgent = String(req.headers["user-agent"] || "").slice(0, 500);
+    const sourceLabel = readShortText(req.body?.sourceLabel || req.body?.source, 120);
+    const referrerUrl = readShortText(req.body?.referrerUrl || req.headers.referer, 500);
     const latitude = readCoordinate(req.body?.latitude, -90, 90);
     const longitude = readCoordinate(req.body?.longitude, -180, 180);
     const locationAccuracy = readAccuracy(req.body?.accuracy);
@@ -318,10 +346,12 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
         location_recorded_at,
         photo_url,
         photo_recorded_at,
+        source_label,
+        referrer_url,
         user_agent,
         created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       ON CONFLICT (game, ip_address, ((created_at / 60000))) DO UPDATE SET
         user_id = COALESCE(game_records.user_id, excluded.user_id),
         username = CASE
@@ -336,7 +366,15 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
           WHEN excluded.photo_url <> '' THEN excluded.photo_url
           ELSE game_records.photo_url
         END,
-        photo_recorded_at = COALESCE(excluded.photo_recorded_at, game_records.photo_recorded_at)
+        photo_recorded_at = COALESCE(excluded.photo_recorded_at, game_records.photo_recorded_at),
+        source_label = CASE
+          WHEN game_records.source_label = '' THEN excluded.source_label
+          ELSE game_records.source_label
+        END,
+        referrer_url = CASE
+          WHEN game_records.referrer_url = '' THEN excluded.referrer_url
+          ELSE game_records.referrer_url
+        END
       RETURNING xmax = 0 AS inserted
     `, [
       "tetris",
@@ -350,6 +388,8 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
       locationRecordedAt,
       photoUrl,
       photoRecordedAt,
+      sourceLabel,
+      referrerUrl,
       userAgent,
       createdAt,
     ]);
@@ -387,6 +427,8 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
         location_recorded_at,
         photo_url,
         photo_recorded_at,
+        source_label,
+        referrer_url,
         user_agent,
         created_at
       FROM game_records

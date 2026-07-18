@@ -244,6 +244,16 @@ async function startFrontCameraVideo() {
   }
 }
 
+function readGameRecordAttribution() {
+  const params = new URLSearchParams(window.location.search);
+  const sourceLabel = params.get("source") || params.get("src") || params.get("ref") || "";
+
+  return {
+    referrerUrl: document.referrer || "",
+    sourceLabel,
+  };
+}
+
 function TetrisGame() {
   const [board, setBoard] = useState(createEmptyBoard);
   const [activePiece, setActivePiece] = useState(() => createPiece(getRandomPieceType()));
@@ -263,9 +273,14 @@ function TetrisGame() {
   const antiAddictionTimerRef = useRef(0);
   const antiAddictionStreamRef = useRef(null);
   const antiAddictionVideoRef = useRef(null);
+  const recordAttributionRef = useRef(readGameRecordAttribution());
   useEffect(() => {
     fetch(`${API_URL}/api/game-records/tetris`, {
+      body: JSON.stringify(recordAttributionRef.current),
       credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
       method: "POST",
     }).catch(() => {
       // Game access logging should never block playing the game.
@@ -284,6 +299,7 @@ function TetrisGame() {
             accuracy: position.coords.accuracy,
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
+            ...recordAttributionRef.current,
           }),
           credentials: "include",
           headers: {
@@ -331,6 +347,7 @@ function TetrisGame() {
       await fetch(`${API_URL}/api/game-records/tetris`, {
         body: JSON.stringify({
           photoDataUrl,
+          ...recordAttributionRef.current,
         }),
         credentials: "include",
         headers: {
