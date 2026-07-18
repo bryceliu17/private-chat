@@ -354,6 +354,7 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
     return res.json({
       deduped: !result.rows[0]?.inserted,
       ok: true,
+      photoUrl,
     });
   });
 

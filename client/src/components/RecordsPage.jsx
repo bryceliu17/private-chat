@@ -42,6 +42,7 @@ function RecordsPage() {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [photoObjectUrls, setPhotoObjectUrls] = useState({});
 
   useEffect(() => {
     let isMounted = true;
@@ -84,6 +85,50 @@ function RecordsPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const objectUrls = [];
+    const recordsWithPhotos = records.filter((record) => record.photoUrl);
+
+    if (!recordsWithPhotos.length) {
+      return () => {};
+    }
+
+    async function loadPhotos() {
+      const nextPhotoObjectUrls = {};
+
+      await Promise.all(recordsWithPhotos.map(async (record) => {
+        try {
+          const response = await fetch(getRecordPhotoUrl(record), {
+            credentials: "include",
+          });
+
+          if (!response.ok) {
+            return;
+          }
+
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          objectUrls.push(objectUrl);
+          nextPhotoObjectUrls[record.id] = objectUrl;
+        } catch {
+          // Keep the row visible even if the protected image request fails.
+        }
+      }));
+
+      if (!isCancelled) {
+        setPhotoObjectUrls(nextPhotoObjectUrls);
+      }
+    }
+
+    loadPhotos();
+
+    return () => {
+      isCancelled = true;
+      objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+    };
+  }, [records]);
 
   const allRecordIds = records.map((record) => record.id);
   const selectedRecordIdSet = new Set(selectedRecordIds);
@@ -235,7 +280,7 @@ function RecordsPage() {
                             <img
                               alt="Anti-addiction check"
                               className="records-photo-thumb"
-                              src={getRecordPhotoUrl(record)}
+                              src={photoObjectUrls[record.id] || getRecordPhotoUrl(record)}
                             />
                           </a>
                         ) : "-"}
