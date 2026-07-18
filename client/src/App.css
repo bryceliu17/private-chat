@@ -642,13 +642,6 @@ body {
   text-underline-offset: 2px;
 }
 
-.records-source-link {
-  color: #1d4ed8;
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 .login-help {
   margin: 0 0 12px;
   color: #555;
