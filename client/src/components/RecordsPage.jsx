@@ -28,6 +28,17 @@ function formatBrowserLocation(record) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}${accuracyText}`;
 }
 
+function getGoogleMapsUrl(record) {
+  const latitude = Number(record.latitude);
+  const longitude = Number(record.longitude);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return "";
+  }
+
+  return `https://www.google.com/maps?q=${latitude},${longitude}`;
+}
+
 function getRecordPhotoUrl(record) {
   if (!record.photoUrl) {
     return "";
@@ -223,7 +234,18 @@ function RecordsPage() {
                       <td>{record.ipAddress}</td>
                       <td>{record.ipLocation}</td>
                       <td title={record.userAgent || ""}>{record.browser || "Unknown"}</td>
-                      <td>{formatBrowserLocation(record)}</td>
+                      <td>
+                        {getGoogleMapsUrl(record) ? (
+                          <a
+                            className="records-map-link"
+                            href={getGoogleMapsUrl(record)}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            {formatBrowserLocation(record)}
+                          </a>
+                        ) : "-"}
+                      </td>
                       <td>
                         {record.photoUrl ? (
                           <a
