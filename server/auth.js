@@ -39,6 +39,8 @@ async function createSession(res, user) {
     : SESSION_MAX_AGE_MS;
   const expiresAt = Date.now() + maxAge;
 
+  await db.run("DELETE FROM sessions WHERE expires_at <= $1", [Date.now()]);
+
   await db.run("INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)", [
     sessionId,
     user.id,
