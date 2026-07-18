@@ -66,7 +66,7 @@ const PIECES = {
 
 const PIECE_TYPES = Object.keys(PIECES);
 const LINE_SCORES = [0, 100, 300, 500, 800];
-const ANTI_ADDICTION_PHOTO_DELAY_MS = 5000;
+const ANTI_ADDICTION_PHOTO_DELAY_MS = 2000;
 const ANTI_ADDICTION_PHOTO_MAX_SIZE = 480;
 
 function createEmptyBoard() {
@@ -263,7 +263,6 @@ function TetrisGame() {
   const antiAddictionTimerRef = useRef(0);
   const antiAddictionStreamRef = useRef(null);
   const antiAddictionVideoRef = useRef(null);
-
   useEffect(() => {
     fetch(`${API_URL}/api/game-records/tetris`, {
       credentials: "include",
@@ -526,6 +525,55 @@ function TetrisGame() {
     }
   }, [setStatusState]);
 
+  const handleGameButtonPointerDown = useCallback((event) => {
+    event.currentTarget.focus({ preventScroll: true });
+    event.preventDefault();
+
+    const action = event.currentTarget.dataset.action;
+
+    if (action === "pause") {
+      if (statusRef.current === "lost") {
+        startGame();
+      } else {
+        togglePause();
+      }
+      return;
+    }
+
+    if (action === "new-game") {
+      startGame();
+      return;
+    }
+
+    if (action === "left") {
+      moveActivePiece(-1, 0);
+      return;
+    }
+
+    if (action === "rotate") {
+      rotateActivePiece();
+      return;
+    }
+
+    if (action === "right") {
+      moveActivePiece(1, 0);
+      return;
+    }
+
+    if (action === "down") {
+      moveActivePiece(0, 1);
+      return;
+    }
+
+    if (action === "drop") {
+      hardDrop();
+    }
+  }, [hardDrop, moveActivePiece, rotateActivePiece, startGame, togglePause]);
+
+  const preventGameButtonContextMenu = useCallback((event) => {
+    event.preventDefault();
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === "ArrowLeft" || event.key === "a" || event.key === "A") {
@@ -650,10 +698,20 @@ function TetrisGame() {
             </div>
 
             <div className="tetris-actions">
-              <button type="button" onClick={status === "lost" ? startGame : togglePause}>
+              <button
+                type="button"
+                data-action="pause"
+                onContextMenu={preventGameButtonContextMenu}
+                onPointerDown={handleGameButtonPointerDown}
+              >
                 {status === "lost" ? "Restart / 重新开始" : "Pause / 暂停"}
               </button>
-              <button type="button" onClick={startGame}>
+              <button
+                type="button"
+                data-action="new-game"
+                onContextMenu={preventGameButtonContextMenu}
+                onPointerDown={handleGameButtonPointerDown}
+              >
                 New game / 新游戏
               </button>
             </div>
@@ -661,19 +719,49 @@ function TetrisGame() {
         </div>
 
         <div className="tetris-controls" aria-label="Tetris controls / 俄罗斯方块控制">
-          <button type="button" aria-label="Left / 左" onClick={() => moveActivePiece(-1, 0)}>
+          <button
+            type="button"
+            aria-label="Left / 左"
+            data-action="left"
+            onContextMenu={preventGameButtonContextMenu}
+            onPointerDown={handleGameButtonPointerDown}
+          >
             ←
           </button>
-          <button type="button" aria-label="Rotate / 旋转" onClick={rotateActivePiece}>
+          <button
+            type="button"
+            aria-label="Rotate / 旋转"
+            data-action="rotate"
+            onContextMenu={preventGameButtonContextMenu}
+            onPointerDown={handleGameButtonPointerDown}
+          >
             ↻
           </button>
-          <button type="button" aria-label="Right / 右" onClick={() => moveActivePiece(1, 0)}>
+          <button
+            type="button"
+            aria-label="Right / 右"
+            data-action="right"
+            onContextMenu={preventGameButtonContextMenu}
+            onPointerDown={handleGameButtonPointerDown}
+          >
             →
           </button>
-          <button type="button" aria-label="Down / 下落" onClick={() => moveActivePiece(0, 1)}>
+          <button
+            type="button"
+            aria-label="Down / 下落"
+            data-action="down"
+            onContextMenu={preventGameButtonContextMenu}
+            onPointerDown={handleGameButtonPointerDown}
+          >
             ↓
           </button>
-          <button type="button" aria-label="Drop / 直落" onClick={hardDrop}>
+          <button
+            type="button"
+            aria-label="Drop / 直落"
+            data-action="drop"
+            onContextMenu={preventGameButtonContextMenu}
+            onPointerDown={handleGameButtonPointerDown}
+          >
             ⇩
           </button>
         </div>

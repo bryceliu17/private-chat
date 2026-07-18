@@ -306,6 +306,9 @@ body {
   justify-content: center;
   min-height: 100vh;
   padding: 12px;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
 }
 
 .tetris-shell {
@@ -463,6 +466,9 @@ body {
   font-weight: 700;
   min-height: 40px;
   padding: 0 10px;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  user-select: none;
 }
 
 .tetris-controls {
@@ -470,6 +476,7 @@ body {
   gap: 8px;
   grid-template-columns: repeat(3, 1fr);
   margin-top: 16px;
+  touch-action: none;
 }
 
 .records-page {
