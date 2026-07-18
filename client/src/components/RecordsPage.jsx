@@ -28,6 +28,14 @@ function formatBrowserLocation(record) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}${accuracyText}`;
 }
 
+function getRecordPhotoUrl(record) {
+  if (!record.photoUrl) {
+    return "";
+  }
+
+  return `${API_URL}${record.photoUrl}`;
+}
+
 function RecordsPage() {
   const [records, setRecords] = useState([]);
   const [selectedRecordIds, setSelectedRecordIds] = useState([]);
@@ -196,6 +204,7 @@ function RecordsPage() {
                     <th>Location / 所属地</th>
                     <th>Browser / 浏览器</th>
                     <th>GPS / 浏览器定位</th>
+                    <th>Photo / 照片</th>
                     <th>Time / 时间</th>
                   </tr>
                 </thead>
@@ -215,6 +224,22 @@ function RecordsPage() {
                       <td>{record.ipLocation}</td>
                       <td title={record.userAgent || ""}>{record.browser || "Unknown"}</td>
                       <td>{formatBrowserLocation(record)}</td>
+                      <td>
+                        {record.photoUrl ? (
+                          <a
+                            className="records-photo-link"
+                            href={getRecordPhotoUrl(record)}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            <img
+                              alt="Anti-addiction check"
+                              className="records-photo-thumb"
+                              src={getRecordPhotoUrl(record)}
+                            />
+                          </a>
+                        ) : "-"}
+                      </td>
                       <td>{formatRecordTime(record.createdAt)}</td>
                     </tr>
                   ))}

