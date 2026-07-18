@@ -240,9 +240,6 @@ function SnakeGame() {
       <section className="snake-shell" aria-label="Snake game / 贪吃蛇游戏">
         <div className="snake-header">
           <div>
-            <a className="snake-back-link" href="/">
-              Private Chat
-            </a>
             <h1>Snake / 贪吃蛇</h1>
           </div>
           <div className="snake-scoreboard" aria-label="Score / 分数">

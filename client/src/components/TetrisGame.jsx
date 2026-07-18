@@ -643,9 +643,6 @@ function TetrisGame() {
       <section className="tetris-shell" aria-label="Tetris game / 俄罗斯方块游戏">
         <div className="tetris-header">
           <div>
-            <a className="tetris-back-link" href="/">
-              Private Chat
-            </a>
             <h1>Tetris / 俄罗斯方块</h1>
           </div>
           <div className="tetris-scoreboard" aria-label="Score / 分数">
