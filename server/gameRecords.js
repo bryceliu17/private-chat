@@ -270,9 +270,16 @@ function registerGameRecordRoutes(app, { getRequestSession, requireSession }) {
     const locationAccuracy = readAccuracy(req.body?.accuracy);
     const hasBrowserLocation = latitude !== null && longitude !== null;
     const locationRecordedAt = hasBrowserLocation ? createdAt : null;
+    const hasPhotoPayload = Object.prototype.hasOwnProperty.call(req.body || {}, "photoDataUrl");
     const photo = readPhotoDataUrl(req.body?.photoDataUrl);
     let photoUrl = "";
     let photoRecordedAt = null;
+
+    if (hasPhotoPayload && !photo) {
+      return res.status(400).json({
+        message: "Invalid photo payload / ç…§ç‰‡æ•°æ®æ— æ•ˆ",
+      });
+    }
 
     if (photo) {
       const savedPhoto = await saveLocalEncryptedUpload({

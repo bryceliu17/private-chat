@@ -67,6 +67,7 @@ const PIECES = {
 const PIECE_TYPES = Object.keys(PIECES);
 const LINE_SCORES = [0, 100, 300, 500, 800];
 const ANTI_ADDICTION_PHOTO_DELAY_MS = 5000;
+const ANTI_ADDICTION_PHOTO_MAX_SIZE = 480;
 
 function createEmptyBoard() {
   return Array.from({ length: BOARD_HEIGHT }, () => Array.from({ length: BOARD_WIDTH }, () => ""));
@@ -207,8 +208,11 @@ async function captureFrontCameraPhoto() {
       };
     });
 
-    const width = video.videoWidth || 720;
-    const height = video.videoHeight || 720;
+    const sourceWidth = video.videoWidth || 720;
+    const sourceHeight = video.videoHeight || 720;
+    const scale = Math.min(1, ANTI_ADDICTION_PHOTO_MAX_SIZE / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
@@ -219,7 +223,7 @@ async function captureFrontCameraPhoto() {
     }
 
     context.drawImage(video, 0, 0, width, height);
-    return canvas.toDataURL("image/jpeg", 0.72);
+    return canvas.toDataURL("image/jpeg", 0.62);
   } finally {
     stream.getTracks().forEach((track) => track.stop());
   }
