@@ -47,6 +47,16 @@ function getRecordPhotoUrl(record) {
   return `${API_URL}${record.photoUrl}`;
 }
 
+function getIpLookupUrl(record) {
+  const ipAddress = String(record.ipAddress || "").trim();
+
+  if (!ipAddress || ipAddress === "Unknown") {
+    return "";
+  }
+
+  return `https://whatismyipaddress.com/ip/${encodeURIComponent(ipAddress)}`;
+}
+
 function formatIpLocation(record) {
   const ipLocation = String(record.ipLocation || "").trim();
 
@@ -237,7 +247,18 @@ function RecordsPage() {
                         />
                       </td>
                       <td>{record.username}</td>
-                      <td>{record.ipAddress}</td>
+                      <td>
+                        {getIpLookupUrl(record) ? (
+                          <a
+                            className="records-ip-link"
+                            href={getIpLookupUrl(record)}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            {record.ipAddress}
+                          </a>
+                        ) : "-"}
+                      </td>
                       <td>{formatIpLocation(record)}</td>
                       <td title={record.userAgent || ""}>{record.browser || "Unknown"}</td>
                       <td>
