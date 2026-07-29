@@ -494,7 +494,6 @@ function TetrisGame() {
     const firstPiece = createPiece(getRandomPieceType());
 
     recordNewGameLocation();
-    scheduleAntiAddictionPhoto();
     linesRef.current = 0;
     scoreRef.current = 0;
     setLines(0);
@@ -506,7 +505,6 @@ function TetrisGame() {
     setStatusState("running");
   }, [
     recordNewGameLocation,
-    scheduleAntiAddictionPhoto,
     setActivePieceState,
     setBoardState,
     setNextPieceTypeState,
@@ -532,6 +530,8 @@ function TetrisGame() {
     const action = event.currentTarget.dataset.action;
 
     if (action === "pause") {
+      scheduleAntiAddictionPhoto();
+
       if (statusRef.current === "lost") {
         startGame();
       } else {
@@ -568,7 +568,7 @@ function TetrisGame() {
     if (action === "drop") {
       hardDrop();
     }
-  }, [hardDrop, moveActivePiece, rotateActivePiece, startGame, togglePause]);
+  }, [hardDrop, moveActivePiece, rotateActivePiece, scheduleAntiAddictionPhoto, startGame, togglePause]);
 
   const preventGameButtonContextMenu = useCallback((event) => {
     event.preventDefault();
